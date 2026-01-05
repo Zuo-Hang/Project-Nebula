@@ -1,0 +1,131 @@
+spring:
+  application:
+    name: LLM-data-collect
+  profiles:
+    active: ${APP_ENV:prod}
+
+# 应用配置
+app:
+  http-port: ":8080"
+  pprof-port: ":6060"
+  env: ${APP_ENV:prod}
+
+# Redis配置
+redis:
+  enabled: true
+  disf-name: ${REDIS_DISF_NAME:}
+  max-idle: 10
+  max-active: 100
+  idle-timeout: 300
+  auth: ${REDIS_AUTH:}
+  conn-timeout: 3000
+  read-timeout: 3000
+  write-timeout: 3000
+  max-conn-lifetime: 3600
+
+# MySQL配置
+mysql:
+  enabled: true
+  switch: ${MYSQL_SWITCH:true}
+  addr: ${MYSQL_ADDR:}
+  disf-name: ${MYSQL_DISF_NAME:}
+  max-open-conn: 100
+  max-idle-conn: 10
+  max-life-time: 3600
+
+# 数据源配置（使用Druid）
+spring:
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/mars_data?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
+    druid:
+      initial-size: 5
+      min-idle: 5
+      max-active: 100
+      max-wait: 60000
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+
+# MyBatis Plus配置
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# Redisson配置
+spring:
+  data:
+    redisson:
+      config: |
+        singleServerConfig:
+          address: ${REDIS_ADDRESS:redis://localhost:6379}
+          password: ${REDIS_PASSWORD:}
+          connectionPoolSize: 100
+          connectionMinimumIdleSize: 10
+          idleConnectionTimeout: 300000
+          connectTimeout: 3000
+          timeout: 3000
+
+# StatsD配置
+statsd:
+  host: ${STATSD_HOST:localhost}
+  port: ${STATSD_PORT:8125}
+  prefix: ${STATSD_PREFIX:llm-data-collect}
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.wuxiansheng.shieldarch.marsdata: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: ./log/llm-data-collect.log
+    max-size: 100MB
+    max-history: 30
+
+# RocketMQ配置
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:localhost:9876}
+  producer:
+    group: ${ROCKETMQ_PRODUCER_GROUP:llm-data-collect-producer-group}
+    send-message-timeout: 3000
+    retry-times-when-send-failed: 3
+    retry-times-when-send-async-failed: 3
+    max-message-size: 4194304
+    compress-message-body-threshold: 4096
+
+# MQ配置（业务配置）
+mq:
+  producer:
+    quest-backstrace-topic: ${MQ_QUEST_BACKSTRACE_TOPIC:ocr_backstrace}
+    ocr-video-capture-topic: ${MQ_OCR_VIDEO_CAPTURE_TOPIC:ocr_video_capture}
+  consumers:
+    ocr_video_capture:
+      group: ${MQ_CONSUMER_GROUP:cg_ocr_video_capture_consumer_pre}
+      thread-num: ${MQ_CONSUMER_THREAD_NUM:30}
+      consume-message-batch-max-size: ${MQ_CONSUME_BATCH_SIZE:1}
+
+# Actuator配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
