@@ -3,7 +3,7 @@ package com.wuxiansheng.shieldarch.marsdata.scheduler.tasks;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuxiansheng.shieldarch.marsdata.config.PriceFittingConfigService;
 import com.wuxiansheng.shieldarch.marsdata.io.DufeClient;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import com.wuxiansheng.shieldarch.marsdata.scheduler.LockedTask;
 import com.wuxiansheng.shieldarch.marsdata.scheduler.repository.EconomyBubble;
 import com.wuxiansheng.shieldarch.marsdata.scheduler.repository.MysqlRow;
@@ -42,18 +42,18 @@ public class PriceFittingTask implements LockedTask {
     private final PriceFittingRepository repository;
     private final PriceFittingConfigService configService;
     private final DufeClient dufeClient;
-    private final StatsdClient statsdClient;
+    private final MetricsClientAdapter metricsClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired
     public PriceFittingTask(PriceFittingRepository repository,
                            PriceFittingConfigService configService,
                            DufeClient dufeClient,
-                           StatsdClient statsdClient) {
+                           MetricsClientAdapter metricsClient) {
         this.repository = repository;
         this.configService = configService;
         this.dufeClient = dufeClient;
-        this.statsdClient = statsdClient;
+        this.metricsClient = metricsClient;
     }
 
     @Override
@@ -412,8 +412,8 @@ public class PriceFittingTask implements LockedTask {
         if (!missingPartners.isEmpty()) {
             log.info("[PriceFittingTask] estimate_id={}, city_name={} 缺少以下供应商的应答率，跳过这些记录(warn): {}",
                     specialPrice.getEstimateId(), cityName, missingPartners);
-            if (statsdClient != null) {
-                statsdClient.increment(PRICE_FITTING_MISSING_RESPONSE_RATE, null);
+            if (metricsClient != null) {
+                metricsClient.increment(PRICE_FITTING_MISSING_RESPONSE_RATE, Map.of());
             }
         }
 
@@ -483,7 +483,7 @@ public class PriceFittingTask implements LockedTask {
         result.setCapPrice(0.0);
         result.setReducePrice(0.0);
         result.setCarType(specialPrice.getCarType());
-        result.setCityID(specialPrice.getCityId());
+        result.setCityId(specialPrice.getCityId());
         result.setCityName(specialPrice.getCityName());
         result.setCreateTime(now);
         result.setUpdateTime(now);

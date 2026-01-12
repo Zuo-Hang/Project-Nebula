@@ -1,6 +1,6 @@
 package com.wuxiansheng.shieldarch.marsdata.io;
 
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
@@ -20,7 +20,7 @@ public class RedisWrapper {
     private RedissonClient redissonClient;
     
     @Autowired(required = false)
-    private StatsdClient statsdClient;
+    private MetricsClientAdapter metricsClient;
 
     /**
      * Redis键不存在错误
@@ -89,10 +89,10 @@ public class RedisWrapper {
             code = 1;
             throw new KeyNotFoundException("redis get error: " + e.getMessage());
         } finally {
-            // 上报StatsD指标
-            if (statsdClient != null) {
+            // 上报指标
+            if (metricsClient != null) {
                 long latency = System.currentTimeMillis() - begin;
-                statsdClient.recordRpcMetric("redis_get_req", "redis", "get", latency, code);
+                metricsClient.recordRpcMetric("redis_get_req", "redis", "get", latency, code);
             }
         }
     }
@@ -121,10 +121,10 @@ public class RedisWrapper {
             code = 1;
             log.error("Redis setEx error: {}", e.getMessage(), e);
         } finally {
-            // 上报StatsD指标
-            if (statsdClient != null) {
+            // 上报指标
+            if (metricsClient != null) {
                 long latency = System.currentTimeMillis() - begin;
-                statsdClient.recordRpcMetric("redis_setex_req", "redis", "setex", latency, code);
+                metricsClient.recordRpcMetric("redis_setex_req", "redis", "setex", latency, code);
             }
         }
     }

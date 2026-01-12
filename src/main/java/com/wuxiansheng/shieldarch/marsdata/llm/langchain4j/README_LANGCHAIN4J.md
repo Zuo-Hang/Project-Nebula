@@ -18,7 +18,7 @@ requestLLM() 方法
     ↓                    ↓
 LangChain4jLLMService  HTTP 直接调用
     ↓
-DiSFChatModel (适配 DiSF)
+DiSFChatModel (适配服务发现)
     ↓
 LLM API
 ```
@@ -26,11 +26,11 @@ LLM API
 ## 📦 核心组件
 
 ### 1. `DiSFChatModel`
-自定义 ChatModel，适配 DiSF 服务发现和现有的 LLM 服务。
+自定义 ChatModel，适配服务发现和现有的 LLM 服务。
 
 **功能**：
 - 实现 `ChatLanguageModel` 接口
-- 适配 DiSF 服务发现
+- 适配服务发现（通过 ServiceDiscovery 接口）
 - 支持多模态（文本 + 图片）
 - 保持与现有 API 格式兼容
 
@@ -95,7 +95,7 @@ String content = response.getChoices().get(0).getMessage().getContent();
 
 ### 3. 配置管理
 - ✅ 复用现有的配置管理
-- ✅ 复用现有的 DiSF 服务发现
+- ✅ 复用现有的服务发现机制（ServiceDiscovery 接口）
 - ✅ 支持按业务配置不同的 LLM 参数
 
 ### 4. 多模态支持
@@ -161,8 +161,8 @@ String content = response.content().text();
 
 ### 指标上报
 
-- 保持现有的 StatsD 指标上报
-- 指标名称：`llm_req`
+- 使用 Prometheus 进行指标上报
+- 指标名称：`llm_req_total` 和 `llm_req_duration_ms`
 
 ## 📝 后续优化
 

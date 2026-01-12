@@ -32,7 +32,7 @@ mkdir -p conf/nacos
 
 # 创建配置文件
 cat > conf/nacos/OCR_LLM_CONF.properties << EOF
-llm_cluster_conf_bsaas={"disfName":"disf!...","appId":"...","params":{...}}
+llm_cluster_conf_bsaas={"serviceName":"disf!...","appId":"...","params":{...}}
 bsaas_prompt=请识别图片中的司机和乘客信息...
 EOF
 ```

@@ -1,10 +1,9 @@
 package com.wuxiansheng.shieldarch.marsdata.io;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
-import com.wuxiansheng.shieldarch.marsdata.utils.DiSFUtils;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import com.wuxiansheng.shieldarch.marsdata.utils.HttpUtils;
+import com.wuxiansheng.shieldarch.marsdata.utils.ServiceDiscovery;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,10 +21,10 @@ import java.util.*;
 public class QuestService {
     
     /**
-     * 小桔问卷DiSF服务名
+     * 小桔问卷服务名（支持服务发现格式，如 "disf!service-name" 或直接 IP:Port）
      */
-    @Value("${quest.xiaoju-survey.disf-name:10.88.128.40:8000}")
-    private String xiaoJuSurveyDisfName;
+    @Value("${quest.xiaoju-survey.service-name:10.88.128.40:8000}")
+    private String xiaoJuSurveyServiceName;
     
     /**
      * 小桔问卷Token
@@ -37,13 +36,13 @@ public class QuestService {
     private HttpUtils httpUtils;
     
     @Autowired(required = false)
-    private DiSFUtils diSFUtils;
+    private ServiceDiscovery serviceDiscovery;
     
     @Autowired(required = false)
     private ObjectMapper objectMapper;
     
     @Autowired(required = false)
-    private StatsdClient statsdClient;
+    private MetricsClientAdapter metricsClient;
     
     public QuestService() {
         if (this.objectMapper == null) {
@@ -66,9 +65,9 @@ public class QuestService {
         
         try {
             // 获取HTTP端点
-            String ipPort = getHttpEndpoint(xiaoJuSurveyDisfName);
+            String ipPort = getHttpEndpoint(xiaoJuSurveyServiceName);
             if (ipPort == null || ipPort.isEmpty()) {
-                log.warn("no valid endpoint for {}", xiaoJuSurveyDisfName);
+                log.warn("no valid endpoint for {}", xiaoJuSurveyServiceName);
                 throw new Exception("no valid endpoint");
             }
             
@@ -134,9 +133,9 @@ public class QuestService {
         } finally {
             // 记录RPC指标
             long duration = System.currentTimeMillis() - begin;
-            if (statsdClient != null) {
+            if (metricsClient != null) {
                 int responseCode = error == null ? 0 : 1;
-                statsdClient.recordRpcMetric("quest_req", "self", "QueryQuestByCreateAt", 
+                metricsClient.recordRpcMetric("quest_req", "self", "QueryQuestByCreateAt", 
                     duration, responseCode);
             }
         }
@@ -170,12 +169,15 @@ public class QuestService {
     /**
      * 获取HTTP端点
      */
-    private String getHttpEndpoint(String disfName) {
-        if (diSFUtils != null) {
-            return diSFUtils.getHttpEndpoint(disfName);
+    private String getHttpEndpoint(String serviceName) {
+        if (serviceDiscovery != null && serviceDiscovery.isAvailable()) {
+            String endpoint = serviceDiscovery.getHttpEndpoint(serviceName);
+            if (endpoint != null && !endpoint.isEmpty()) {
+                return endpoint;
+            }
         }
-        // 如果没有DiSF工具，直接返回配置的值（可能是IP:Port格式）
-        return disfName;
+        // 如果没有服务发现，直接返回配置的值（可能是IP:Port格式）
+        return serviceName;
     }
     
     /**

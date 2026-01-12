@@ -17,9 +17,9 @@ public class RedisConfig {
     private Boolean enabled = true;
 
     /**
-     * DiSF服务名
+     * 服务名称（支持服务发现格式，如 "disf!service-name" 或直接 IP:Port）
      */
-    private String disfName;
+    private String serviceName;
 
     /**
      * 最大空闲连接数

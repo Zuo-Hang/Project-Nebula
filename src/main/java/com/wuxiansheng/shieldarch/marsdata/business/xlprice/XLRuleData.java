@@ -3,9 +3,6 @@ package com.wuxiansheng.shieldarch.marsdata.business.xlprice;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * 小拉规则数据
  */

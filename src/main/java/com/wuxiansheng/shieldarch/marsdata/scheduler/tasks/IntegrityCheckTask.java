@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuxiansheng.shieldarch.marsdata.config.CityMap;
 import com.wuxiansheng.shieldarch.marsdata.config.PatrolConfig;
 import com.wuxiansheng.shieldarch.marsdata.config.PatrolConfigService;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import com.wuxiansheng.shieldarch.marsdata.scheduler.LockedTask;
 import com.wuxiansheng.shieldarch.marsdata.scheduler.repository.IntegrityCheckGroupResult;
 import com.wuxiansheng.shieldarch.marsdata.scheduler.repository.IntegrityRepository;
@@ -48,15 +48,15 @@ public class IntegrityCheckTask implements LockedTask {
 
     private final IntegrityRepository integrityRepository;
     private final PatrolConfigService patrolConfigService;
-    private final StatsdClient statsdClient;
+    private final MetricsClientAdapter metricsClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public IntegrityCheckTask(IntegrityRepository integrityRepository,
                               PatrolConfigService patrolConfigService,
-                              StatsdClient statsdClient) {
+                              MetricsClientAdapter metricsClient) {
         this.integrityRepository = integrityRepository;
         this.patrolConfigService = patrolConfigService;
-        this.statsdClient = statsdClient;
+        this.metricsClient = metricsClient;
     }
 
     @Override
@@ -194,7 +194,7 @@ public class IntegrityCheckTask implements LockedTask {
     }
 
     /**
-     * 上报完整性校验的指标（当前实现为打日志，预留接入 StatsD 等监控系统的能力）
+     * 上报完整性校验的指标
      *
      * 指标1: integrity_missing_count - 缺失的问卷条数，维度：距离段、时间段、城市名称
      * 指标2: integrity_actual_count - 实际查询到的问卷条数，维度：距离段、时间段、城市名称
@@ -230,12 +230,12 @@ public class IntegrityCheckTask implements LockedTask {
 
                     int actualCount = actualDisRangeMap.getOrDefault(disRange, 0);
 
-                    // 模拟 CounterN 指标上报（当前仅输出日志，后续可接入 StatsD）
+                    // 上报实际数量指标
                     if (actualCount > 0) {
                         log.info("[IntegrityCheckTask] 上报实际数量指标: metric={}, dis_range={}, time_range={}, city_name={}, count={}",
                                 INTEGRITY_ACTUAL_COUNT_METRIC, disRange, timeRange, cityName, actualCount);
-                        if (statsdClient != null) {
-                            statsdClient.count(INTEGRITY_ACTUAL_COUNT_METRIC, actualCount, null);
+                        if (metricsClient != null) {
+                            metricsClient.count(INTEGRITY_ACTUAL_COUNT_METRIC, actualCount, Map.of());
                         }
                     }
 
@@ -243,8 +243,8 @@ public class IntegrityCheckTask implements LockedTask {
                         int missingCount = expectedCount - actualCount;
                         log.info("[IntegrityCheckTask] 上报缺失数量指标: metric={}, dis_range={}, time_range={}, city_name={}, missing_count={}, expected_count={}, actual_count={}",
                                 INTEGRITY_MISSING_COUNT_METRIC, disRange, timeRange, cityName, missingCount, expectedCount, actualCount);
-                        if (statsdClient != null) {
-                            statsdClient.count(INTEGRITY_MISSING_COUNT_METRIC, missingCount, null);
+                        if (metricsClient != null) {
+                            metricsClient.count(INTEGRITY_MISSING_COUNT_METRIC, missingCount, Map.of());
                         }
                     }
                 }

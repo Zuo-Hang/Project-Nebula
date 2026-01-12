@@ -2,7 +2,7 @@ package com.wuxiansheng.shieldarch.marsdata.mq;
 
 import com.wuxiansheng.shieldarch.marsdata.config.MqConfig;
 import com.wuxiansheng.shieldarch.marsdata.llm.MessageHandler;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.client.consumer.DefaultMQPushConsumer;
 import org.apache.rocketmq.client.consumer.listener.ConsumeConcurrentlyContext;
@@ -34,7 +34,7 @@ public class Consumer {
     private MqConfig mqConfig;
     
     @Autowired(required = false)
-    private StatsdClient statsdClient;
+    private MetricsClientAdapter metricsClient;
     
     @Autowired
     private MessageHandler messageHandler;
@@ -165,17 +165,17 @@ public class Consumer {
      * 监控MQ指标
      */
     private void monitorMQ(String topic, MessageExt messageExt) {
-        if (statsdClient == null) {
+        if (metricsClient == null) {
             return;
         }
         
         try {
-            statsdClient.incrementCounter("ddmq_req", Map.of("topic", topic));
+            metricsClient.incrementCounter("ddmq_req", Map.of("topic", topic));
             
             // 检查重试次数
             int reconsumeTimes = messageExt.getReconsumeTimes();
             if (reconsumeTimes > 0) {
-                statsdClient.incrementCounter("ddmq_req_retry", Map.of("retry", String.valueOf(reconsumeTimes)));
+                metricsClient.incrementCounter("ddmq_req_retry", Map.of("retry", String.valueOf(reconsumeTimes)));
             }
         } catch (Exception e) {
             log.warn("监控MQ指标失败", e);

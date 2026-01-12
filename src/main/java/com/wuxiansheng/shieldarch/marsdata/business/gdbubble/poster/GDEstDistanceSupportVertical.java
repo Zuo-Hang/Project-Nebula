@@ -1,7 +1,6 @@
 package com.wuxiansheng.shieldarch.marsdata.business.gdbubble.poster;
 
 import com.wuxiansheng.shieldarch.marsdata.business.gdbubble.GDBubbleBusiness;
-import com.wuxiansheng.shieldarch.marsdata.business.gdbubble.GDBubbleInput;
 import com.wuxiansheng.shieldarch.marsdata.llm.Business;
 import com.wuxiansheng.shieldarch.marsdata.llm.BusinessContext;
 import com.wuxiansheng.shieldarch.marsdata.llm.Poster;

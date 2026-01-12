@@ -6,7 +6,6 @@ import com.wuxiansheng.shieldarch.marsdata.business.xlprice.XLPriceRuleBusiness;
 import com.wuxiansheng.shieldarch.marsdata.business.xlprice.XLRuleData;
 import com.wuxiansheng.shieldarch.marsdata.llm.Business;
 import com.wuxiansheng.shieldarch.marsdata.llm.BusinessContext;
-import com.wuxiansheng.shieldarch.marsdata.llm.Sinker;
 import com.wuxiansheng.shieldarch.marsdata.llm.sinker.HiveSinker;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;

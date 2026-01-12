@@ -13,7 +13,7 @@ import java.util.Map;
  * 
  * 实现步骤：
  * 1. 接入滴滴内部 Dufe Java SDK
- * 2. 使用 DiSFUtils 进行服务发现，获取 Dufe 服务端点
+ * 2. 使用 ServiceDiscovery 进行服务发现，获取 Dufe 服务端点
  * 4. 实现 getTemplateFeature 方法，调用真实的 Dufe API
  * 5. 实现 isAvailable 方法，检查服务可用性
  */
@@ -25,12 +25,10 @@ public class DufeClient {
 
     /**
      * 初始化Dufe服务
-     * 
-     * 注意：需要在 DiSF 初始化之后调用
      */
     public void initDufeService() {
         // TODO: 接入真实的 dufe Java SDK
-        // 1. 使用 DiSFUtils 获取 Dufe 服务端点
+        // 1. 使用 ServiceDiscovery 获取 Dufe 服务端点
         // 2. 初始化 Dufe 客户端
         // 3. 设置 initialized = true
         

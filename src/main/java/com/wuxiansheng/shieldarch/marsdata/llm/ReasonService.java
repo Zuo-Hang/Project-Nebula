@@ -1,7 +1,7 @@
 package com.wuxiansheng.shieldarch.marsdata.llm;
 
 import com.wuxiansheng.shieldarch.marsdata.config.AppConfigService;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -28,7 +28,7 @@ public class ReasonService {
     private LLMClient llmClient;
     
     @Autowired(required = false)
-    private StatsdClient statsdClient;
+    private MetricsClientAdapter metricsClient;
     
     @Autowired
     private AppConfigService appConfigService;
@@ -305,20 +305,20 @@ public class ReasonService {
         switch (eventType) {
             case "error":
                 log.warn("LLM cache error for image: {}, business: {}, error: {}", picUrl, businessName, error);
-                if (statsdClient != null) {
-                    statsdClient.incrementCounter("llm_cache_error", Map.of("business", businessName));
+                if (metricsClient != null) {
+                    metricsClient.incrementCounter("llm_cache_error", Map.of("business", businessName));
                 }
                 break;
             case "miss":
                 log.info("LLM cache miss for image: {}, business: {}", picUrl, businessName);
-                if (statsdClient != null) {
-                    statsdClient.incrementCounter("llm_cache_miss", Map.of("business", businessName));
+                if (metricsClient != null) {
+                    metricsClient.incrementCounter("llm_cache_miss", Map.of("business", businessName));
                 }
                 break;
             case "hit":
                 log.info("LLM cache hit for image: {}, business: {}", picUrl, businessName);
-                if (statsdClient != null) {
-                    statsdClient.incrementCounter("llm_cache_hit", Map.of("business", businessName));
+                if (metricsClient != null) {
+                    metricsClient.incrementCounter("llm_cache_hit", Map.of("business", businessName));
                 }
                 break;
         }

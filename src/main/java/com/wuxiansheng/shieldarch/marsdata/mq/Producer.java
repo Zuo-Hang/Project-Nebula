@@ -1,7 +1,7 @@
 package com.wuxiansheng.shieldarch.marsdata.mq;
 
 import com.wuxiansheng.shieldarch.marsdata.config.MqConfig;
-import com.wuxiansheng.shieldarch.marsdata.utils.StatsDUtils;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
@@ -29,7 +29,7 @@ public class Producer {
     private MqConfig mqConfig;
     
     @Autowired(required = false)
-    private StatsDUtils statsDUtils;
+    private MetricsClientAdapter metricsClient;
     
     @Value("${rocketmq.name-server:localhost:9876}")
     private String nameServer;
@@ -91,8 +91,8 @@ public class Producer {
             
             if (sendResult.getSendStatus() == SendStatus.SEND_OK) {
                 // 上报指标
-                if (statsDUtils != null) {
-                    statsDUtils.counter("ddmq_producer", Map.of("topic", topic));
+                if (metricsClient != null) {
+                    metricsClient.incrementCounter("ddmq_producer", Map.of("topic", topic));
                 }
                 
                 log.debug("消息发送成功: topic={}, msgId={}", topic, sendResult.getMsgId());

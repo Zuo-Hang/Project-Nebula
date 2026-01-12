@@ -16,7 +16,7 @@ import java.util.Properties;
 /**
  * Nacos 服务发现实现
  * 
- * 使用 Nacos 替换 DiSF 服务发现
+ * 使用 Nacos 作为服务发现组件
  */
 @Slf4j
 @Component

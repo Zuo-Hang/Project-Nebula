@@ -125,14 +125,14 @@ http://localhost:8848/nacos
 
 **Properties 格式**：
 ```properties
-llm_cluster_conf_bsaas={"disfName":"disf!...","appId":"...","params":{...}}
+llm_cluster_conf_bsaas={"serviceName":"disf!...","appId":"...","params":{...}}
 bsaas_prompt=请识别图片中的...
 bsaas_valid_supplier=小拉出行,小拉特选,顺风车
 ```
 
 **YAML 格式**：
 ```yaml
-llm_cluster_conf_bsaas: '{"disfName":"disf!...","appId":"...","params":{...}}'
+llm_cluster_conf_bsaas: '{"serviceName":"disf!...","appId":"...","params":{...}}'
 bsaas_prompt: "请识别图片中的..."
 bsaas_valid_supplier: "小拉出行,小拉特选,顺风车"
 ```

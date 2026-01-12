@@ -3,8 +3,8 @@ package com.wuxiansheng.shieldarch.marsdata.llm;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuxiansheng.shieldarch.marsdata.config.AppConfigService;
 import com.wuxiansheng.shieldarch.marsdata.llm.langchain4j.LangChain4jLLMService;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
-import com.wuxiansheng.shieldarch.marsdata.utils.DiSFUtils;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
+import com.wuxiansheng.shieldarch.marsdata.utils.ServiceDiscovery;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,13 +32,13 @@ public class LLMClient {
     private ObjectMapper objectMapper;
     
     @Autowired(required = false)
-    private StatsdClient statsdClient;
+    private MetricsClientAdapter metricsClient;
     
     @Autowired
     private AppConfigService appConfigService;
     
     @Autowired(required = false)
-    private DiSFUtils diSFUtils;
+    private ServiceDiscovery serviceDiscovery;
     
     @Autowired(required = false)
     private LangChain4jLLMService langChain4jLLMService;
@@ -58,7 +58,7 @@ public class LLMClient {
      */
     @Data
     public static class LLMClusterConf {
-        private String disfName;
+        private String serviceName;  // 服务名称（支持服务发现格式，如 "disf!service-name"）
         private String appId;
         private LLMParams params;
         
@@ -79,7 +79,7 @@ public class LLMClient {
      */
     @Data
     public static class RequestLLMRequest {
-        private String llmDisfName;
+        private String llmServiceName;  // LLM服务名称（支持服务发现格式）
         private String caller;
         private Map<String, String> headers;
         private String params;
@@ -169,7 +169,7 @@ public class LLMClient {
         LLMClusterConf conf = getLLMClusterConf(businessName);
         
         RequestLLMRequest request = new RequestLLMRequest();
-        request.setLlmDisfName(conf.getDisfName());
+        request.setLlmServiceName(conf.getServiceName());
         request.setCaller(businessName);
         request.setReqUrl(url);
         request.setPrompt(prompt);
@@ -216,9 +216,9 @@ public class LLMClient {
             throw e;
         } finally {
             // 上报指标
-            if (statsdClient != null) {
+            if (metricsClient != null) {
                 long duration = System.currentTimeMillis() - beginTime;
-                statsdClient.recordRpcMetric("llm_req", request.getCaller(), "llm", duration, 
+                metricsClient.recordRpcMetric("llm_req", request.getCaller(), "llm", duration, 
                     error == null ? 0 : 1);
             }
         }
@@ -275,64 +275,64 @@ public class LLMClient {
      * 原有实现（保留作为回退方案）
      */
     private LLMResponse requestLLMLegacy(RequestLLMRequest request, long beginTime) throws Exception {
-        // 构建消息
-        LLMMessage message = new LLMMessage();
-        message.setRole("user");
-        
-        List<LLMMessageContent> contents = new ArrayList<>();
-        // 文本内容
-        LLMMessageContent textContent = new LLMMessageContent();
-        textContent.setType("text");
-        textContent.setText(request.getPrompt());
-        contents.add(textContent);
-        
-        // 图片内容
-        LLMMessageContent imageContent = new LLMMessageContent();
-        imageContent.setType("image_url");
-        MessageImageUrl imageUrl = new MessageImageUrl();
-        imageUrl.setUrl(request.getReqUrl());
-        imageContent.setImageUrl(imageUrl);
-        contents.add(imageContent);
-        
-        message.setContent(contents);
-        
-        // 构建请求体
-        LLMRequest llmReq = objectMapper.readValue(request.getParams(), LLMRequest.class);
-        llmReq.setMessages(List.of(message));
-        
-        // 获取HTTP端点
-        String endpoint = getHttpEndpoint(request.getLlmDisfName());
-        if (endpoint == null || endpoint.isEmpty()) {
-            throw new Exception("no valid llm endpoint: " + request.getLlmDisfName());
-        }
-        
-        String url = "http://" + endpoint + "/v1/chat/completions";
-        
-        // 发送HTTP请求
-        String requestBody = objectMapper.writeValueAsString(llmReq);
-        HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("Content-Type", "application/json")
-                .headers(request.getHeaders().entrySet().stream()
-                        .flatMap(e -> java.util.stream.Stream.of(e.getKey(), e.getValue()))
-                        .toArray(String[]::new))
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .timeout(Duration.ofSeconds(60))
-                .build();
-        
-        HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-        
-        if (response.statusCode() != 200) {
-            throw new Exception("HTTP请求失败: statusCode=" + response.statusCode() + ", body=" + response.body());
-        }
-        
-        // 解析响应
-        LLMResponse llmResponse = objectMapper.readValue(response.body(), LLMResponse.class);
-        
+            // 构建消息
+            LLMMessage message = new LLMMessage();
+            message.setRole("user");
+            
+            List<LLMMessageContent> contents = new ArrayList<>();
+            // 文本内容
+            LLMMessageContent textContent = new LLMMessageContent();
+            textContent.setType("text");
+            textContent.setText(request.getPrompt());
+            contents.add(textContent);
+            
+            // 图片内容
+            LLMMessageContent imageContent = new LLMMessageContent();
+            imageContent.setType("image_url");
+            MessageImageUrl imageUrl = new MessageImageUrl();
+            imageUrl.setUrl(request.getReqUrl());
+            imageContent.setImageUrl(imageUrl);
+            contents.add(imageContent);
+            
+            message.setContent(contents);
+            
+            // 构建请求体
+            LLMRequest llmReq = objectMapper.readValue(request.getParams(), LLMRequest.class);
+            llmReq.setMessages(List.of(message));
+            
+            // 获取HTTP端点
+            String endpoint = getHttpEndpoint(request.getLlmServiceName());
+            if (endpoint == null || endpoint.isEmpty()) {
+                throw new Exception("no valid llm endpoint: " + request.getLlmServiceName());
+            }
+            
+            String url = "http://" + endpoint + "/v1/chat/completions";
+            
+            // 发送HTTP请求
+            String requestBody = objectMapper.writeValueAsString(llmReq);
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .headers(request.getHeaders().entrySet().stream()
+                            .flatMap(e -> java.util.stream.Stream.of(e.getKey(), e.getValue()))
+                            .toArray(String[]::new))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .timeout(Duration.ofSeconds(60))
+                    .build();
+            
+            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() != 200) {
+                throw new Exception("HTTP请求失败: statusCode=" + response.statusCode() + ", body=" + response.body());
+            }
+            
+            // 解析响应
+            LLMResponse llmResponse = objectMapper.readValue(response.body(), LLMResponse.class);
+            
         log.info("requestLLM (Legacy) pic_url: {}, cost: {}ms", 
             request.getReqUrl(), System.currentTimeMillis() - beginTime);
-        
-        return llmResponse;
+            
+            return llmResponse;
     }
     
     /**
@@ -370,7 +370,7 @@ public class LLMClient {
      */
     private LLMClusterConf getDefaultLLMClusterConf() {
         LLMClusterConf conf = new LLMClusterConf();
-        conf.setDisfName("disf!machinelearning-luban-online-online-service-biz-Nautilus-OCR_model_online");
+        conf.setServiceName("disf!machinelearning-luban-online-online-service-biz-Nautilus-OCR_model_online");
         conf.setAppId("k8s-sv0-uozuez-1754050816242");
         
         LLMClusterConf.LLMParams params = new LLMClusterConf.LLMParams();
@@ -389,32 +389,32 @@ public class LLMClient {
     /**
      * 获取HTTP端点
      * 
-     * @param disfName DiSF服务名称
+     * @param serviceName 服务名称（支持服务发现格式，如 "disf!service-name" 或直接 IP:Port）
      * @return HTTP端点（格式：ip:port），如果获取失败返回null
      */
-    private String getHttpEndpoint(String disfName) {
-        if (disfName == null || disfName.isEmpty()) {
-            log.warn("DiSF服务名称为空");
+    private String getHttpEndpoint(String serviceName) {
+        if (serviceName == null || serviceName.isEmpty()) {
+            log.warn("服务名称为空");
             return null;
         }
         
-        // 兼容测试环境的vip（不包含disf!前缀）
-        if (!disfName.contains("disf!")) {
-            log.debug("使用测试环境VIP: {}", disfName);
-            return disfName;
+        // 兼容测试环境的VIP（不包含disf!前缀，直接是IP:Port格式）
+        if (!serviceName.contains("disf!") && serviceName.contains(":")) {
+            log.debug("使用测试环境VIP: {}", serviceName);
+            return serviceName;
         }
         
-        // 使用DiSF工具类获取服务端点
-        if (diSFUtils != null) {
-            String endpoint = diSFUtils.getHttpEndpoint(disfName);
+        // 使用服务发现获取服务端点
+        if (serviceDiscovery != null && serviceDiscovery.isAvailable()) {
+            String endpoint = serviceDiscovery.getHttpEndpoint(serviceName);
             if (endpoint != null && !endpoint.isEmpty()) {
                 return endpoint;
             }
         }
         
-        // 如果DiSF工具类不可用，记录警告
-        log.warn("DiSF服务发现不可用，无法获取端点: {}", disfName);
-        log.warn("请确保DiSF Java SDK已正确配置和初始化");
+        // 如果服务发现不可用，记录警告
+        log.warn("服务发现不可用，无法获取端点: {}", serviceName);
+        log.warn("请确保 Nacos 或其他服务发现组件已正确配置和初始化");
         
         return null;
     }

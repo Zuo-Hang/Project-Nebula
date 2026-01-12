@@ -2,7 +2,6 @@ package com.wuxiansheng.shieldarch.marsdata.llm;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuxiansheng.shieldarch.marsdata.config.AppConfigService;
-import com.wuxiansheng.shieldarch.marsdata.config.ExpireConfigService;
 import com.wuxiansheng.shieldarch.marsdata.io.RedisWrapper;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;

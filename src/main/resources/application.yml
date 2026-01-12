@@ -13,7 +13,7 @@ app:
 # Redis配置
 redis:
   enabled: true
-  disf-name: ${REDIS_DISF_NAME:}
+  service-name: ${REDIS_SERVICE_NAME:}  # 服务名称（支持服务发现格式，如 "disf!service-name" 或直接 IP:Port）
   max-idle: 10
   max-active: 100
   idle-timeout: 300
@@ -28,7 +28,7 @@ mysql:
   enabled: true
   switch: ${MYSQL_SWITCH:true}
   addr: ${MYSQL_ADDR:}
-  disf-name: ${MYSQL_DISF_NAME:}
+  service-name: ${MYSQL_SERVICE_NAME:}  # 服务名称（支持服务发现格式，如 "disf!service-name" 或直接 IP:Port）
   max-open-conn: 100
   max-idle-conn: 10
   max-life-time: 3600
@@ -79,12 +79,6 @@ spring:
           connectTimeout: 3000
           timeout: 3000
 
-# StatsD配置
-statsd:
-  host: ${STATSD_HOST:localhost}
-  port: ${STATSD_PORT:8125}
-  prefix: ${STATSD_PREFIX:llm-data-collect}
-
 # 日志配置
 logging:
   level:
@@ -129,6 +123,18 @@ management:
   endpoint:
     health:
       show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${app.env:prod}
+
+# 监控配置
+monitoring:
+  # 监控类型：prometheus（已完全迁移到 Prometheus）
+  type: ${MONITORING_TYPE:prometheus}
 
 # 定时任务配置
 scheduler:

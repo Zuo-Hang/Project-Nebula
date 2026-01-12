@@ -2,14 +2,10 @@ package com.wuxiansheng.shieldarch.marsdata.business.couponsp;
 
 import com.wuxiansheng.shieldarch.marsdata.llm.Business;
 import com.wuxiansheng.shieldarch.marsdata.llm.BusinessContext;
-import com.wuxiansheng.shieldarch.marsdata.llm.Sinker;
 import com.wuxiansheng.shieldarch.marsdata.llm.sinker.HiveSinker;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
-import java.util.ArrayList;
-import java.util.List;
 import java.util.StringJoiner;
 
 /**

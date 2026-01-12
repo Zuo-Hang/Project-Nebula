@@ -22,9 +22,9 @@ public class MysqlConfig {
     private String addr;
 
     /**
-     * DiSF服务名
+     * 服务名称（支持服务发现格式，如 "disf!service-name" 或直接 IP:Port）
      */
-    private String disfName;
+    private String serviceName;
 
     /**
      * 最大打开连接数

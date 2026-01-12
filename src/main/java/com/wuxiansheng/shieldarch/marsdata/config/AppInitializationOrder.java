@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
  *    - BusinessRegistrationConfig.registerDependencies() - 业务注册
  *    - RedisWrapper.initRedisClient() - Redis客户端初始化（如果需要）
  *    - MysqlWrapper.initMysql() - MySQL连接初始化
- *    - DiSFInitializer.init() - DiSF服务发现初始化（占位）
+ *    - ServiceDiscovery初始化（NacosServiceDiscovery）
  *    - DirPCInitializer.init() - DirPC客户端初始化（占位）
  *    - DufeClient初始化（占位，需要真实SDK）
  * 
@@ -34,7 +34,8 @@ import org.springframework.stereotype.Component;
  *    - 定时任务启动（Spring Boot @EnableScheduling自动启动）
  * 
  * 注意：
- * - 内部SDK（DiSF、DirPC、Dufe）需要替换为真实的Java SDK实现
+ * - 内部SDK（DirPC、Dufe）需要替换为真实的Java SDK实现
+ * - 服务发现已使用 Nacos 替换 DiSF
  * - 监控工具（pprof、Odin）在Java中可以使用Spring Boot Actuator替代
  */
 @Slf4j
@@ -49,7 +50,7 @@ public class AppInitializationOrder {
  * 3. InitConfig - 配置文件加载
      * 4. LoadBaseConfigWithEnv - 基础配置加载
      * 5. InitRedisClient - Redis初始化
-     * 6. introspection.SetupFromConfig - DiSF初始化
+     * 6. ServiceDiscovery初始化 - 服务发现初始化（Nacos）
      * 7. dirpc.Setup - DirPC初始化
      * 8. InitDufeService - Dufe初始化
      * 9. InitMysql - MySQL初始化

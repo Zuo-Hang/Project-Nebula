@@ -1,7 +1,6 @@
 package com.wuxiansheng.shieldarch.marsdata.business.gdbubble.sinker;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.wuxiansheng.shieldarch.marsdata.business.gdbubble.GDBubbleBusiness;
 import com.wuxiansheng.shieldarch.marsdata.business.gdbubble.GDBubbleInput;
 import com.wuxiansheng.shieldarch.marsdata.business.gdbubble.GDBubbleReasonResult;

@@ -1,0 +1,101 @@
+{
+  "dashboard": {
+    "title": "基础设施监控",
+    "tags": ["infrastructure", "redis", "external", "scheduler"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Redis 操作 QPS",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(redis_get_req_total[1m])",
+            "legendFormat": "GET - {{status}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(redis_setex_req_total[1m])",
+            "legendFormat": "SETEX - {{status}}",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "操作次数/秒"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Redis 操作延迟 (P95)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(redis_get_req_duration_ms_bucket[5m]))",
+            "legendFormat": "GET P95",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(redis_setex_req_duration_ms_bucket[5m]))",
+            "legendFormat": "SETEX P95",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "延迟"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "外部服务调用 (MapAPI/Quest)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(mapapi_req_total[1m])",
+            "legendFormat": "MapAPI - {{status}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(quest_req_total[1m])",
+            "legendFormat": "Quest - {{status}}",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "调用次数/秒"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "定时任务执行统计",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(scheduler_task_total[1m])",
+            "legendFormat": "{{task}}",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(scheduler_task_duration_bucket[5m]))",
+            "legendFormat": "执行时长 P95 - {{task}}",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "执行次数/秒"},
+          {"format": "short"}
+        ]
+      }
+    ]
+  }
+}
+

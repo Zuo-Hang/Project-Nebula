@@ -1,7 +1,7 @@
 package com.wuxiansheng.shieldarch.marsdata.llm.langchain4j;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wuxiansheng.shieldarch.marsdata.utils.DiSFUtils;
+import com.wuxiansheng.shieldarch.marsdata.utils.ServiceDiscovery;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -20,14 +20,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 自定义 ChatModel，适配 DiSF 服务发现和现有的 LLM 服务
+ * 自定义 ChatModel，适配服务发现和现有的 LLM 服务
  * 
- * 将 LangChain4j 的 ChatLanguageModel 接口适配到现有的 DiSF + HTTP 调用方式
+ * 将 LangChain4j 的 ChatLanguageModel 接口适配到现有的服务发现 + HTTP 调用方式
  */
 @Slf4j
 public class DiSFChatModel implements ChatLanguageModel {
     
-    private final String disfName;
+    private final String serviceName;  // 服务名称（支持服务发现格式，如 "disf!service-name"）
     private final String appId;
     private final String model;
     private final int maxTokens;
@@ -37,15 +37,15 @@ public class DiSFChatModel implements ChatLanguageModel {
     private final double repetitionPenalty;
     private final boolean stream;
     
-    private final DiSFUtils diSFUtils;
+    private final ServiceDiscovery serviceDiscovery;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     
-    public DiSFChatModel(String disfName, String appId, String model,
+    public DiSFChatModel(String serviceName, String appId, String model,
                         int maxTokens, double temperature, double topK, 
                         double topP, double repetitionPenalty, boolean stream,
-                        DiSFUtils diSFUtils, ObjectMapper objectMapper) {
-        this.disfName = disfName;
+                        ServiceDiscovery serviceDiscovery, ObjectMapper objectMapper) {
+        this.serviceName = serviceName;
         this.appId = appId;
         this.model = model;
         this.maxTokens = maxTokens;
@@ -54,7 +54,7 @@ public class DiSFChatModel implements ChatLanguageModel {
         this.topP = topP;
         this.repetitionPenalty = repetitionPenalty;
         this.stream = stream;
-        this.diSFUtils = diSFUtils;
+        this.serviceDiscovery = serviceDiscovery;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
@@ -67,7 +67,7 @@ public class DiSFChatModel implements ChatLanguageModel {
             // 1. 获取 HTTP 端点
             String endpoint = getHttpEndpoint();
             if (endpoint == null || endpoint.isEmpty()) {
-                throw new RuntimeException("无法获取 LLM 端点: " + disfName);
+                throw new RuntimeException("无法获取 LLM 端点: " + serviceName);
             }
             
             String url = "http://" + endpoint + "/v1/chat/completions";
@@ -105,7 +105,7 @@ public class DiSFChatModel implements ChatLanguageModel {
         } catch (Exception e) {
             // 确保清除上下文
             clearContext();
-            log.error("DiSFChatModel 调用失败: disfName={}, error={}", disfName, e.getMessage(), e);
+            log.error("DiSFChatModel 调用失败: serviceName={}, error={}", serviceName, e.getMessage(), e);
             throw new RuntimeException("LLM 调用失败: " + e.getMessage(), e);
         }
     }
@@ -139,26 +139,26 @@ public class DiSFChatModel implements ChatLanguageModel {
      * 获取 HTTP 端点
      */
     private String getHttpEndpoint() {
-        if (disfName == null || disfName.isEmpty()) {
-            log.warn("DiSF 服务名称为空");
+        if (serviceName == null || serviceName.isEmpty()) {
+            log.warn("服务名称为空");
             return null;
         }
         
-        // 兼容测试环境的 VIP（不包含 disf! 前缀）
-        if (!disfName.contains("disf!")) {
-            log.debug("使用测试环境 VIP: {}", disfName);
-            return disfName;
+        // 兼容测试环境的 VIP（不包含 disf! 前缀，直接是 IP:Port 格式）
+        if (!serviceName.contains("disf!") && serviceName.contains(":")) {
+            log.debug("使用测试环境 VIP: {}", serviceName);
+            return serviceName;
         }
         
-        // 使用 DiSF 工具类获取服务端点
-        if (diSFUtils != null) {
-            String endpoint = diSFUtils.getHttpEndpoint(disfName);
+        // 使用服务发现获取服务端点
+        if (serviceDiscovery != null && serviceDiscovery.isAvailable()) {
+            String endpoint = serviceDiscovery.getHttpEndpoint(serviceName);
             if (endpoint != null && !endpoint.isEmpty()) {
                 return endpoint;
             }
         }
         
-        log.warn("DiSF 服务发现不可用，无法获取端点: {}", disfName);
+        log.warn("服务发现不可用，无法获取端点: {}", serviceName);
         return null;
     }
     

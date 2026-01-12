@@ -34,7 +34,7 @@ fi
 
 # 创建必要的目录
 echo "📁 创建必要的目录..."
-mkdir -p mysql redis rocketmq
+mkdir -p mysql redis rocketmq prometheus grafana/provisioning/datasources grafana/provisioning/dashboards
 echo "✅ 目录创建完成"
 echo ""
 
@@ -63,6 +63,10 @@ echo "  - Nacos 密码:       nacos"
 echo "  - RocketMQ 控制台:  http://localhost:8081"
 echo "  - Redis:            localhost:6379"
 echo "  - MySQL (Nacos):    localhost:3307"
+echo "  - Prometheus:       http://localhost:9090"
+echo "  - Grafana:          http://localhost:3000"
+echo "  - Grafana 用户名:   admin"
+echo "  - Grafana 密码:     admin"
 echo ""
 echo "🔧 常用命令:"
 echo "  - 查看日志:         $DOCKER_COMPOSE logs -f [服务名]"

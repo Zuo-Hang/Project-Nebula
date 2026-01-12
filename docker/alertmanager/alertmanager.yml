@@ -1,0 +1,84 @@
+global:
+  # 告警解决超时时间
+  resolve_timeout: 5m
+  # 默认通知模板（可选）
+  # slack_api_url: ''
+
+# 告警路由配置
+route:
+  # 默认接收者
+  receiver: 'default-receiver'
+  # 分组规则：相同标签的告警会被分组
+  group_by: ['alertname', 'cluster', 'service']
+  # 分组等待时间：同一组内的告警会等待一段时间再发送
+  group_wait: 10s
+  # 同一组内新告警的等待时间
+  group_interval: 10s
+  # 重复告警的发送间隔
+  repeat_interval: 12h
+  # 子路由（可以根据标签路由到不同的接收者）
+  routes:
+    # 严重告警路由
+    - match:
+        severity: critical
+      receiver: 'critical-receiver'
+      continue: true
+    # 警告级别告警路由
+    - match:
+        severity: warning
+      receiver: 'warning-receiver'
+      continue: true
+
+# 抑制规则（减少告警噪音）
+inhibit_rules:
+  # 如果应用宕机，抑制其他告警
+  - source_match:
+      alertname: 'ApplicationDown'
+    target_match:
+      severity: 'warning'
+    equal: ['instance', 'service']
+
+# 接收者配置
+receivers:
+  # 默认接收者（控制台输出，用于测试）
+  - name: 'default-receiver'
+    webhook_configs:
+      - url: 'http://localhost:9093/api/v1/alerts'
+        send_resolved: true
+
+  # 严重告警接收者
+  - name: 'critical-receiver'
+    # 可以配置多种通知方式
+    # 1. 邮件通知（需要配置 SMTP）
+    # email_configs:
+    #   - to: 'ops-team@example.com'
+    #     from: 'alertmanager@example.com'
+    #     smarthost: 'smtp.example.com:587'
+    #     auth_username: 'alertmanager@example.com'
+    #     auth_password: 'password'
+    #     headers:
+    #       Subject: '🚨 严重告警: {{ .GroupLabels.alertname }}'
+    
+    # 2. Webhook 通知（可以发送到钉钉、企业微信等）
+    webhook_configs:
+      - url: 'http://localhost:9093/api/v1/alerts'
+        send_resolved: true
+        # 可以添加自定义头部
+        # http_config:
+        #   bearer_token: 'your-token'
+    
+    # 3. 钉钉通知（需要配置 Webhook URL）
+    # webhook_configs:
+    #   - url: 'https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN'
+    #     send_resolved: true
+
+  # 警告级别接收者
+  - name: 'warning-receiver'
+    webhook_configs:
+      - url: 'http://localhost:9093/api/v1/alerts'
+        send_resolved: true
+
+# 模板文件（可选，用于自定义告警消息格式）
+# templates:
+#   - '/etc/alertmanager/templates/*.tmpl'
+

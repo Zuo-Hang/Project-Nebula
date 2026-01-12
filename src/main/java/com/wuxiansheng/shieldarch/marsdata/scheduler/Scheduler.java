@@ -1,7 +1,7 @@
 package com.wuxiansheng.shieldarch.marsdata.scheduler;
 
 import com.wuxiansheng.shieldarch.marsdata.io.RedisLock;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 
 /**
@@ -36,7 +37,7 @@ public class Scheduler {
     private RedisLock redisLock;
 
     @Autowired(required = false)
-    private StatsdClient statsdClient;
+    private MetricsClientAdapter metricsClient;
 
     /**
      * 初始化调度线程池
@@ -109,8 +110,8 @@ public class Scheduler {
      */
     protected void reportTaskExecution(String taskName, Instant execTime) {
         log.info("[Scheduler] 上报任务执行: task={}, execTime={}", taskName, execTime);
-        if (statsdClient != null) {
-            statsdClient.increment("scheduler_task", null);
+        if (metricsClient != null) {
+            metricsClient.increment("scheduler_task", Map.of("task", taskName));
         }
     }
 
@@ -119,8 +120,8 @@ public class Scheduler {
      */
     protected void reportTaskDuration(String taskName, Instant execTime, Duration duration) {
         log.info("[Scheduler] 任务执行时长: task={}, execTime={}, duration={}", taskName, execTime, duration);
-        if (statsdClient != null) {
-            statsdClient.timing("scheduler_task_duration", duration.toMillis(), null);
+        if (metricsClient != null) {
+            metricsClient.timing("scheduler_task_duration", duration.toMillis(), Map.of("task", taskName));
         }
     }
 

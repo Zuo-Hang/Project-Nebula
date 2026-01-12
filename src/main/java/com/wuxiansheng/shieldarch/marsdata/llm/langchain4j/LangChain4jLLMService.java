@@ -3,7 +3,7 @@ package com.wuxiansheng.shieldarch.marsdata.llm.langchain4j;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuxiansheng.shieldarch.marsdata.config.AppConfigService;
 import com.wuxiansheng.shieldarch.marsdata.llm.LLMClient;
-import com.wuxiansheng.shieldarch.marsdata.utils.DiSFUtils;
+import com.wuxiansheng.shieldarch.marsdata.utils.ServiceDiscovery;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
@@ -33,7 +33,7 @@ public class LangChain4jLLMService {
     private AppConfigService appConfigService;
     
     @Autowired(required = false)
-    private DiSFUtils diSFUtils;
+    private ServiceDiscovery serviceDiscovery;
     
     /**
      * ChatModel 缓存（按业务名称缓存）
@@ -80,9 +80,9 @@ public class LangChain4jLLMService {
             // 获取 LLM 集群配置
             LLMClient.LLMClusterConf conf = getLLMClusterConf(name);
             
-            // 创建 DiSF ChatModel
+            // 创建 ChatModel
             return new DiSFChatModel(
-                conf.getDisfName(),
+                conf.getServiceName(),
                 conf.getAppId(),
                 conf.getParams().getModel(),
                 conf.getParams().getMaxTokens(),
@@ -91,7 +91,7 @@ public class LangChain4jLLMService {
                 conf.getParams().getTopP(),
                 conf.getParams().getRepetitionPenalty(),
                 conf.getParams().isStream(),
-                diSFUtils,
+                serviceDiscovery,
                 objectMapper
             );
         });
@@ -131,7 +131,7 @@ public class LangChain4jLLMService {
      */
     private LLMClient.LLMClusterConf getDefaultLLMClusterConf() {
         LLMClient.LLMClusterConf conf = new LLMClient.LLMClusterConf();
-        conf.setDisfName("disf!machinelearning-luban-online-online-service-biz-Nautilus-OCR_model_online");
+        conf.setServiceName("disf!machinelearning-luban-online-online-service-biz-Nautilus-OCR_model_online");
         conf.setAppId("k8s-sv0-uozuez-1754050816242");
         
         LLMClient.LLMClusterConf.LLMParams params = new LLMClient.LLMClusterConf.LLMParams();

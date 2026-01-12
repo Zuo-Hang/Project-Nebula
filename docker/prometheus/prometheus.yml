@@ -1,0 +1,36 @@
+global:
+  scrape_interval: 15s      # 抓取间隔
+  evaluation_interval: 15s   # 规则评估间隔
+  external_labels:
+    cluster: 'mars-data-local'
+    environment: 'development'
+
+# 告警规则配置
+rule_files:
+  - "alert_rules.yml"
+
+# AlertManager 配置
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# 抓取配置
+scrape_configs:
+  # Spring Boot 应用指标
+  - job_name: 'llm-data-collect'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8080']  # 从 Docker 内部访问宿主机
+        labels:
+          application: 'llm-data-collect'
+          service: 'llm-service'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # Prometheus 自身指标
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+

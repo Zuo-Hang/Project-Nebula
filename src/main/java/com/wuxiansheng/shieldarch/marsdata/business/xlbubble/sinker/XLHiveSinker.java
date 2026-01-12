@@ -6,7 +6,6 @@ import com.wuxiansheng.shieldarch.marsdata.business.xlbubble.XLBubbleInput;
 import com.wuxiansheng.shieldarch.marsdata.business.xlbubble.XLBubbleReasonResult;
 import com.wuxiansheng.shieldarch.marsdata.llm.Business;
 import com.wuxiansheng.shieldarch.marsdata.llm.BusinessContext;
-import com.wuxiansheng.shieldarch.marsdata.llm.Sinker;
 import com.wuxiansheng.shieldarch.marsdata.llm.sinker.HiveSinker;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;

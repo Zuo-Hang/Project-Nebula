@@ -2,7 +2,7 @@ package com.wuxiansheng.shieldarch.marsdata.io;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import com.wuxiansheng.shieldarch.marsdata.utils.GjsonUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +34,7 @@ public class PoiService {
     private ObjectMapper objectMapper;
     
     @Autowired(required = false)
-    private StatsdClient statsdClient;
+    private MetricsClientAdapter metricsClient;
     
     @Autowired(required = false)
     private GjsonUtils gjsonUtils;
@@ -139,9 +139,9 @@ public class PoiService {
         } finally {
             // 记录RPC指标
             long duration = System.currentTimeMillis() - begin;
-            if (statsdClient != null) {
+            if (metricsClient != null) {
                 int responseCode = error == null ? 0 : 1;
-                statsdClient.recordRpcMetric("mapapi_req", caller, "mapapi", duration, responseCode);
+                metricsClient.recordRpcMetric("mapapi_req", caller, "mapapi", duration, responseCode);
             }
         }
     }

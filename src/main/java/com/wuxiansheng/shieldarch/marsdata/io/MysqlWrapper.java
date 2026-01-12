@@ -1,6 +1,5 @@
 package com.wuxiansheng.shieldarch.marsdata.io;
 
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -21,9 +20,6 @@ public class MysqlWrapper {
     
     @Autowired(required = false)
     private DataSource dataSource;
-    
-    @Autowired(required = false)
-    private StatsdClient statsdClient;
 
     /**
      * 初始化MySQL连接
@@ -46,13 +42,6 @@ public class MysqlWrapper {
      */
     public DataSource getDataSource() {
         return dataSource;
-    }
-    
-    /**
-     * 获取StatsD客户端（用于MySQL指标上报）
-     */
-    public StatsdClient getStatsdClient() {
-        return statsdClient;
     }
     
     /**

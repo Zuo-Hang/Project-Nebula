@@ -1,0 +1,187 @@
+groups:
+  - name: llm_data_collect_alerts
+    interval: 30s
+    rules:
+      # LLM 请求失败率告警
+      - alert: HighLLMErrorRate
+        expr: |
+          rate(llm_req_total{status="fail"}[5m]) / 
+          rate(llm_req_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: llm-data-collect
+        annotations:
+          summary: "LLM 请求失败率过高"
+          description: "LLM 请求失败率超过 5%，当前值: {{ $value | humanizePercentage }}"
+
+      # LLM 请求延迟告警
+      - alert: HighLLMLatency
+        expr: |
+          histogram_quantile(0.95, 
+            rate(llm_req_duration_ms_bucket[5m])
+          ) > 5000
+        for: 5m
+        labels:
+          severity: warning
+          service: llm-data-collect
+        annotations:
+          summary: "LLM 请求延迟过高"
+          description: "LLM 请求 P95 延迟超过 5 秒，当前值: {{ $value }}ms"
+
+      # 缓存命中率告警
+      - alert: LowCacheHitRate
+        expr: |
+          rate(llm_cache_hit_total[5m]) / 
+          (rate(llm_cache_hit_total[5m]) + rate(llm_cache_miss_total[5m])) < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          service: llm-data-collect
+        annotations:
+          summary: "缓存命中率过低"
+          description: "缓存命中率低于 70%，当前值: {{ $value | humanizePercentage }}"
+
+      # MQ 消费延迟告警
+      - alert: HighMQConsumeLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(HandlerMsg_duration_ms_bucket[5m])
+          ) > 10000
+        for: 5m
+        labels:
+          severity: warning
+          service: llm-data-collect
+        annotations:
+          summary: "MQ 消费延迟过高"
+          description: "MQ 消费 P95 延迟超过 10 秒，当前值: {{ $value }}ms"
+
+      # MQ 消费重试率告警
+      - alert: HighMQRetryRate
+        expr: |
+          rate(ddmq_req_retry_total[5m]) / 
+          rate(ddmq_req_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: llm-data-collect
+        annotations:
+          summary: "MQ 消费重试率过高"
+          description: "MQ 消费重试率超过 10%，当前值: {{ $value | humanizePercentage }}"
+
+      # 业务处理错误率告警
+      - alert: HighBusinessErrorRate
+        expr: |
+          rate(HandlerBusiness_total{status="fail"}[5m]) / 
+          rate(HandlerBusiness_total[5m]) > 0.03
+        for: 5m
+        labels:
+          severity: warning
+          service: llm-data-collect
+        annotations:
+          summary: "业务处理错误率过高"
+          description: "业务处理错误率超过 3%，当前值: {{ $value | humanizePercentage }}"
+
+      # Redis 操作失败率告警
+      - alert: HighRedisErrorRate
+        expr: |
+          rate(redis_get_req_total{status="fail"}[5m]) / 
+          rate(redis_get_req_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: llm-data-collect
+        annotations:
+          summary: "Redis 操作失败率过高"
+          description: "Redis 操作失败率超过 5%，当前值: {{ $value | humanizePercentage }}"
+
+      # 定时任务执行异常告警（监控任务执行时长异常）
+      - alert: SchedulerTaskAbnormal
+        expr: |
+          histogram_quantile(0.95,
+            rate(scheduler_task_duration_seconds_bucket[10m])
+          ) > 300
+        for: 5m
+        labels:
+          severity: warning
+          service: llm-data-collect
+        annotations:
+          summary: "定时任务执行时长异常"
+          description: "定时任务 {{ $labels.task }} P95 执行时长超过 5 分钟，当前值: {{ $value }}秒"
+
+      # 应用实例宕机告警
+      - alert: ApplicationDown
+        expr: |
+          up{job="llm-data-collect"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: llm-data-collect
+        annotations:
+          summary: "应用实例宕机"
+          description: "应用实例 {{ $labels.instance }} 已宕机超过 1 分钟"
+
+      # JVM 内存使用率告警
+      - alert: HighJVMMemoryUsage
+        expr: |
+          (jvm_memory_used_bytes{area="heap"} / 
+           jvm_memory_max_bytes{area="heap"}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: llm-data-collect
+        annotations:
+          summary: "JVM 堆内存使用率过高"
+          description: "JVM 堆内存使用率超过 85%，当前值: {{ $value | humanizePercentage }}"
+
+      # 消息延迟告警
+      - alert: HighMessageLatency
+        expr: |
+          msg_latency_s > 300
+        for: 5m
+        labels:
+          severity: warning
+          service: llm-data-collect
+        annotations:
+          summary: "消息处理延迟过高"
+          description: "消息延迟超过 5 分钟，当前值: {{ $value }}秒，业务: {{ $labels.business }}"
+
+      # 过期消息过多告警
+      - alert: TooManyExpiredMessages
+        expr: |
+          rate(expire_msg_counter_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: llm-data-collect
+        annotations:
+          summary: "过期消息过多"
+          description: "过期消息速率超过 10 条/分钟，业务: {{ $labels.business }}"
+
+      # 数据完整性告警
+      - alert: DataIntegrityIssue
+        expr: |
+          rate(integrity_missing_count_total[10m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: llm-data-collect
+        annotations:
+          summary: "数据完整性异常"
+          description: "数据缺失数量超过阈值，缺失速率: {{ $value }} 条/10分钟"
+
+      # 外部服务调用失败告警
+      - alert: ExternalServiceFailure
+        expr: |
+          rate(mapapi_req_total{status="fail"}[5m]) / 
+          rate(mapapi_req_total[5m]) > 0.1 OR
+          rate(quest_req_total{status="fail"}[5m]) / 
+          rate(quest_req_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: llm-data-collect
+        annotations:
+          summary: "外部服务调用失败率过高"
+          description: "外部服务调用失败率超过 10%，当前值: {{ $value | humanizePercentage }}"
+

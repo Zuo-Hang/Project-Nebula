@@ -1,0 +1,91 @@
+{
+  "dashboard": {
+    "title": "LLM 请求监控",
+    "tags": ["llm", "request", "monitoring"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "LLM 请求 QPS",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(llm_req_total[1m])",
+            "legendFormat": "{{business}} - {{status}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "QPS"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 2,
+        "title": "LLM 请求成功率",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(llm_req_total{status=\"success\"}[5m]) / rate(llm_req_total[5m]) * 100",
+            "legendFormat": "{{business}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "成功率", "max": 100, "min": 0},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "LLM 请求耗时 (P50/P95/P99)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(llm_req_duration_ms_bucket[5m]))",
+            "legendFormat": "P50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(llm_req_duration_ms_bucket[5m]))",
+            "legendFormat": "P95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(llm_req_duration_ms_bucket[5m]))",
+            "legendFormat": "P99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "耗时"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "LLM 请求错误率趋势",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(llm_req_total{status=\"fail\"}[5m]) / rate(llm_req_total[5m]) * 100",
+            "legendFormat": "{{business}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "错误率"},
+          {"format": "short"}
+        ]
+      }
+    ]
+  }
+}
+

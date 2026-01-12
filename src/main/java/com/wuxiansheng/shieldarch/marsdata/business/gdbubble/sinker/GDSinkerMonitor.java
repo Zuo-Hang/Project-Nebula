@@ -6,7 +6,7 @@ import com.wuxiansheng.shieldarch.marsdata.business.gdbubble.ReasonSupplierResul
 import com.wuxiansheng.shieldarch.marsdata.llm.Business;
 import com.wuxiansheng.shieldarch.marsdata.llm.BusinessContext;
 import com.wuxiansheng.shieldarch.marsdata.llm.Sinker;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -24,7 +24,7 @@ public class GDSinkerMonitor implements Sinker {
     private static final String MONITOR_COUNT_METRICS = "sinker_monitor_count";
     
     @Autowired(required = false)
-    private StatsdClient statsdClient;
+    private MetricsClientAdapter metricsClient;
     
     @Override
     public void sink(BusinessContext bctx, Business business) {
@@ -50,8 +50,8 @@ public class GDSinkerMonitor implements Sinker {
         // 监控供应商
         if (reasonResult.getSuppliersInfo() != null) {
             for (ReasonSupplierResult supplierInfo : reasonResult.getSuppliersInfo()) {
-                if (statsdClient != null) {
-                    statsdClient.incrementCounter(MONITOR_COUNT_METRICS, 
+                if (metricsClient != null) {
+                    metricsClient.incrementCounter(MONITOR_COUNT_METRICS, 
                         Map.of("supplier", supplierInfo.getSupplier()));
                 }
                 
@@ -70,8 +70,8 @@ public class GDSinkerMonitor implements Sinker {
      */
     private void monitorFloatEmpty(Double val, String field) {
         if (val == null || val == 0.0) {
-            if (statsdClient != null) {
-                statsdClient.incrementCounter(MONITOR_METRICS, 
+            if (metricsClient != null) {
+                metricsClient.incrementCounter(MONITOR_METRICS, 
                     Map.of("field", field, "type", "empty"));
             }
         }
@@ -82,8 +82,8 @@ public class GDSinkerMonitor implements Sinker {
      */
     private void monitorStringEmpty(String val, String field) {
         if (val == null || val.isEmpty()) {
-            if (statsdClient != null) {
-                statsdClient.incrementCounter(MONITOR_METRICS, 
+            if (metricsClient != null) {
+                metricsClient.incrementCounter(MONITOR_METRICS, 
                     Map.of("field", field, "type", "empty"));
             }
         }

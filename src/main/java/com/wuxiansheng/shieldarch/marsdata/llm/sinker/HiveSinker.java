@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuxiansheng.shieldarch.marsdata.llm.Business;
 import com.wuxiansheng.shieldarch.marsdata.llm.BusinessContext;
 import com.wuxiansheng.shieldarch.marsdata.llm.Sinker;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -24,7 +24,7 @@ public class HiveSinker implements Sinker {
     private ObjectMapper objectMapper;
     
     @Autowired(required = false)
-    private StatsdClient statsdClient;
+    private MetricsClientAdapter metricsClient;
     
     @Override
     public void sink(BusinessContext bctx, Business business) {
@@ -38,8 +38,8 @@ public class HiveSinker implements Sinker {
         try {
             String params = objectMapper.writeValueAsString(raw);
             
-            if (statsdClient != null) {
-                statsdClient.incrementCounter("write_public", Map.of("business", businessName));
+            if (metricsClient != null) {
+                metricsClient.incrementCounter("write_public", Map.of("business", businessName));
             }
             
             // timestamp：数据采集依赖时间戳，决定了采集到哪个ods层的分区。为了确保数据被采集到，使用处理时间。

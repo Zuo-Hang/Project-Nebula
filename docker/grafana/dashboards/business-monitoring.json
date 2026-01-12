@@ -1,0 +1,91 @@
+{
+  "dashboard": {
+    "title": "业务监控",
+    "tags": ["business", "monitoring"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "各业务处理量",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(HandlerBusiness_total[1m])",
+            "legendFormat": "{{business}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "处理次数/秒"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 2,
+        "title": "业务处理成功率",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(HandlerBusiness_total{status=\"success\"}[5m]) / rate(HandlerBusiness_total[5m]) * 100",
+            "legendFormat": "{{business}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "成功率", "max": 100, "min": 0},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "业务处理耗时 (P95)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(HandlerBusiness_duration_ms_bucket[5m]))",
+            "legendFormat": "{{business}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "耗时"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Poster/Sinker 处理统计",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(poster_counter_total[1m])",
+            "legendFormat": "Poster - {{business}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(sink_counter_total[1m])",
+            "legendFormat": "Sinker - {{business}}",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(sink_fail_total[1m])",
+            "legendFormat": "Sinker 失败 - {{business}}",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "处理次数/秒"},
+          {"format": "short"}
+        ]
+      }
+    ]
+  }
+}
+

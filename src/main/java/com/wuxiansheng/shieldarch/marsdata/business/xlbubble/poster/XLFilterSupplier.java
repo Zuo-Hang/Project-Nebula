@@ -6,7 +6,7 @@ import com.wuxiansheng.shieldarch.marsdata.config.LLMConfigHelper;
 import com.wuxiansheng.shieldarch.marsdata.llm.Business;
 import com.wuxiansheng.shieldarch.marsdata.llm.BusinessContext;
 import com.wuxiansheng.shieldarch.marsdata.llm.Poster;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -26,7 +26,7 @@ public class XLFilterSupplier implements Poster {
     private LLMConfigHelper llmConfigHelper;
     
     @Autowired(required = false)
-    private StatsdClient statsdClient;
+    private MetricsClientAdapter metricsClient;
     
     @Override
     public Business apply(BusinessContext bctx, Business business) {
@@ -48,8 +48,8 @@ public class XLFilterSupplier implements Poster {
                 validSuppliers.add(supplierInfo);
             } else {
                 // 上报被过滤的供应商
-                if (statsdClient != null) {
-                    statsdClient.incrementCounter("filtered_partner", 
+                if (metricsClient != null) {
+                    metricsClient.incrementCounter("filtered_partner", 
                         Map.of("business", businessName, "partner", supplierInfo.getSupplier()));
                 }
                 log.info("FilterValidPartner filter partner name: {}, business_name: {}", 

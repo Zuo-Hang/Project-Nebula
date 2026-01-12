@@ -1,12 +1,11 @@
 package com.wuxiansheng.shieldarch.marsdata.business.gdspecialprice.sinker;
 
 import com.wuxiansheng.shieldarch.marsdata.business.gdspecialprice.GDSpecialPriceBusiness;
-import com.wuxiansheng.shieldarch.marsdata.business.gdspecialprice.GDSpecialPriceInput;
 import com.wuxiansheng.shieldarch.marsdata.business.gdspecialprice.ReasonSupplierResult;
 import com.wuxiansheng.shieldarch.marsdata.llm.Business;
 import com.wuxiansheng.shieldarch.marsdata.llm.BusinessContext;
 import com.wuxiansheng.shieldarch.marsdata.llm.Sinker;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -28,7 +27,7 @@ public class GDSpecialPriceSinkerMonitor implements Sinker {
     private static final double MAX_CAP_PRICE = 120.0;
     
     @Autowired(required = false)
-    private StatsdClient statsdClient;
+    private MetricsClientAdapter metricsClient;
     
     @Override
     public void sink(BusinessContext bctx, Business business) {
@@ -46,14 +45,14 @@ public class GDSpecialPriceSinkerMonitor implements Sinker {
         // 若当前问卷至少识别出一条有效的特价车结果，则记一次识别成功
         if (gb.getReasonResult().getSuppliersInfo() != null && 
             !gb.getReasonResult().getSuppliersInfo().isEmpty()) {
-            if (statsdClient != null) {
-                statsdClient.incrementCounter(RECOGNITION_SUCCESS_METRIC, 
+            if (metricsClient != null) {
+                metricsClient.incrementCounter(RECOGNITION_SUCCESS_METRIC, 
                     Map.of("business", businessName));
             }
         } else {
             // 没有任何供应商，后续会在 MySQL sinker 中插入 MockPartner，这里记录一次"Mock"场景
-            if (gb.getInput() != null && statsdClient != null) {
-                statsdClient.incrementCounter(MOCK_PARTNER_METRIC, 
+            if (gb.getInput() != null && metricsClient != null) {
+                metricsClient.incrementCounter(MOCK_PARTNER_METRIC, 
                     Map.of("business", businessName, 
                            "city", gb.getInput().getCityName() != null ? gb.getInput().getCityName() : "unknown"));
             }
@@ -64,8 +63,8 @@ public class GDSpecialPriceSinkerMonitor implements Sinker {
             for (ReasonSupplierResult supplier : gb.getReasonResult().getSuppliersInfo()) {
                 if (supplier.getCapPrice() != null && 
                     (supplier.getCapPrice() < MIN_CAP_PRICE || supplier.getCapPrice() > MAX_CAP_PRICE)) {
-                    if (statsdClient != null) {
-                        statsdClient.incrementCounter(CAP_PRICE_OUT_OF_RANGE_METRIC, 
+                    if (metricsClient != null) {
+                        metricsClient.incrementCounter(CAP_PRICE_OUT_OF_RANGE_METRIC, 
                             Map.of("business", businessName, 
                                    "supplier", supplier.getSupplier() != null ? supplier.getSupplier() : "unknown"));
                     }

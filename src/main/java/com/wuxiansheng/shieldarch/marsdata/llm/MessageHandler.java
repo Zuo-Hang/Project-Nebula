@@ -3,7 +3,7 @@ package com.wuxiansheng.shieldarch.marsdata.llm;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuxiansheng.shieldarch.marsdata.config.BusinessConfigService;
 import com.wuxiansheng.shieldarch.marsdata.config.ExpireConfigService;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -23,7 +23,7 @@ import java.util.concurrent.Executors;
 public class MessageHandler {
     
     @Autowired(required = false)
-    private StatsdClient statsdClient;
+    private MetricsClientAdapter metricsClient;
     
     @Autowired
     private BusinessRegistry businessRegistry;
@@ -93,16 +93,16 @@ public class MessageHandler {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
             
             // 上报指标
-            if (statsdClient != null) {
+            if (metricsClient != null) {
                 long duration = System.currentTimeMillis() - startTime;
-                statsdClient.recordRpcMetric("HandlerMsg", sourceUniqueId, "all", duration, 0);
+                metricsClient.recordRpcMetric("HandlerMsg", sourceUniqueId, "all", duration, 0);
             }
             
         } catch (Exception e) {
             // 上报错误指标
-            if (statsdClient != null) {
+            if (metricsClient != null) {
                 long duration = System.currentTimeMillis() - startTime;
-                statsdClient.recordRpcMetric("HandlerMsg", "unknown", "all", duration, 1);
+                metricsClient.recordRpcMetric("HandlerMsg", "unknown", "all", duration, 1);
             }
             throw e;
         }
@@ -122,20 +122,20 @@ public class MessageHandler {
             long msgTimestamp = business.getMsgTimestamp();
             long latency = System.currentTimeMillis() / 1000 - msgTimestamp;
             
-            if (statsdClient != null) {
-                statsdClient.recordGauge("msg_latency_s", latency, Map.of("business", businessName));
+            if (metricsClient != null) {
+                metricsClient.recordGauge("msg_latency_s", latency, Map.of("business", businessName));
             }
             
             if (isExpired(msgTimestamp, businessName)) {
-                if (statsdClient != null) {
-                    statsdClient.incrementCounter("expire_msg_counter", Map.of("business", businessName));
+                if (metricsClient != null) {
+                    metricsClient.incrementCounter("expire_msg_counter", Map.of("business", businessName));
                 }
                 log.warn("收到过期消息, business: {}, timestamp: {}", businessName, msgTimestamp);
                 throw new MsgExpiredException("消息已过期");
             }
             
-            if (statsdClient != null) {
-                statsdClient.incrementCounter("msgs_filtered", Map.of("business", businessName));
+            if (metricsClient != null) {
+                metricsClient.incrementCounter("msgs_filtered", Map.of("business", businessName));
             }
             
             // 2. 执行推理
@@ -158,8 +158,8 @@ public class MessageHandler {
             // 4. 执行 Posters
             List<Poster> posters = businessRegistry.getPosters(businessName);
             for (Poster poster : posters) {
-                if (statsdClient != null) {
-                    statsdClient.incrementCounter("poster_counter", Map.of("business", businessName));
+                if (metricsClient != null) {
+                    metricsClient.incrementCounter("poster_counter", Map.of("business", businessName));
                 }
                 business = poster.apply(bctx, business);
             }
@@ -168,14 +168,14 @@ public class MessageHandler {
             // 5. 执行 Sinkers
             List<Sinker> sinkers = businessRegistry.getSinkers(businessName);
             for (Sinker sinker : sinkers) {
-                if (statsdClient != null) {
-                    statsdClient.incrementCounter("sink_counter", Map.of("business", businessName));
+                if (metricsClient != null) {
+                    metricsClient.incrementCounter("sink_counter", Map.of("business", businessName));
                 }
                 try {
                     sinker.sink(bctx, business);
                 } catch (Exception e) {
-                    if (statsdClient != null) {
-                        statsdClient.incrementCounter("sink_fail", 
+                    if (metricsClient != null) {
+                        metricsClient.incrementCounter("sink_fail", 
                             Map.of("business", businessName, "sink", sinker.getClass().getSimpleName()));
                     }
                     log.warn("sink.Sink失败, business: {}, error: {}", businessName, e.getMessage());
@@ -184,16 +184,16 @@ public class MessageHandler {
             }
             
             // 上报指标
-            if (statsdClient != null) {
+            if (metricsClient != null) {
                 long duration = System.currentTimeMillis() - startTime;
-                statsdClient.recordRpcMetric("HandlerBusiness", "all", businessName, duration, 0);
+                metricsClient.recordRpcMetric("HandlerBusiness", "all", businessName, duration, 0);
             }
             
         } catch (Exception e) {
             // 上报错误指标
-            if (statsdClient != null) {
+            if (metricsClient != null) {
                 long duration = System.currentTimeMillis() - startTime;
-                statsdClient.recordRpcMetric("HandlerBusiness", "all", businessName, duration, 1);
+                metricsClient.recordRpcMetric("HandlerBusiness", "all", businessName, duration, 1);
             }
             throw e;
         }

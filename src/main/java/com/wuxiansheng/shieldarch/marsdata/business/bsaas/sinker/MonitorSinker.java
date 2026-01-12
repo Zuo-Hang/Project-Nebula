@@ -4,7 +4,7 @@ import com.wuxiansheng.shieldarch.marsdata.business.bsaas.BSaasBusiness;
 import com.wuxiansheng.shieldarch.marsdata.llm.Business;
 import com.wuxiansheng.shieldarch.marsdata.llm.BusinessContext;
 import com.wuxiansheng.shieldarch.marsdata.llm.Sinker;
-import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
+import com.wuxiansheng.shieldarch.marsdata.monitor.MetricsClientAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -22,7 +22,7 @@ public class MonitorSinker implements Sinker {
     private static final String MONITOR_COUNT_METRIC = "b_saas_monitor_count";
     
     @Autowired(required = false)
-    private StatsdClient statsdClient;
+    private MetricsClientAdapter metricsClient;
     
     @Override
     public void sink(BusinessContext bctx, Business business) {
@@ -31,7 +31,7 @@ public class MonitorSinker implements Sinker {
         }
         
         BSaasBusiness bs = (BSaasBusiness) business;
-        if (bs.getReasonResult() == null || statsdClient == null) {
+        if (bs.getReasonResult() == null || metricsClient == null) {
             return;
         }
         
@@ -50,18 +50,18 @@ public class MonitorSinker implements Sinker {
         String city = bs.getInput() != null && bs.getInput().getMeta() != null ? 
             bs.getInput().getMeta().getCityName() : "";
         
-        statsdClient.incrementCounter(MONITOR_COUNT_METRIC, 
+        metricsClient.incrementCounter(MONITOR_COUNT_METRIC, 
             Map.of("type", "order", "supplier", supplier, "city", city));
         
         if (bs.getReasonResult().getOrderList() == null || 
             bs.getReasonResult().getOrderList().isEmpty()) {
-            statsdClient.incrementCounter(MONITOR_METRIC,
+            metricsClient.incrementCounter(MONITOR_METRIC,
                 Map.of("field", "order_count", "type", "empty"));
         }
         
         if (bs.getReasonResult().getFilteredOrders() != null && 
             !bs.getReasonResult().getFilteredOrders().isEmpty()) {
-            statsdClient.incrementCounter(MONITOR_METRIC,
+            metricsClient.incrementCounter(MONITOR_METRIC,
                 Map.of("field", "order_filtered", "type", "exist"));
         }
     }
@@ -75,7 +75,7 @@ public class MonitorSinker implements Sinker {
         String city = bs.getInput() != null && bs.getInput().getMeta() != null ? 
             bs.getInput().getMeta().getCityName() : "";
         
-        statsdClient.incrementCounter(MONITOR_COUNT_METRIC,
+        metricsClient.incrementCounter(MONITOR_COUNT_METRIC,
             Map.of("type", "detail", "supplier", supplier, "city", city));
         
         boolean hasPassenger = bs.getReasonResult().getPassengerDetails() != null && 
@@ -84,7 +84,7 @@ public class MonitorSinker implements Sinker {
             !bs.getReasonResult().getDriverDetails().isEmpty();
         
         if (!hasPassenger && !hasDriver) {
-            statsdClient.incrementCounter(MONITOR_METRIC,
+            metricsClient.incrementCounter(MONITOR_METRIC,
                 Map.of("field", "detail_count", "type", "empty"));
         }
     }
@@ -95,7 +95,7 @@ public class MonitorSinker implements Sinker {
     private void reportPerformanceMetrics(BSaasBusiness bs) {
         if (bs.getReasonResult().getMergedStats() == null || 
             bs.getReasonResult().getMergedStats().isEmpty()) {
-            statsdClient.incrementCounter(MONITOR_METRIC,
+            metricsClient.incrementCounter(MONITOR_METRIC,
                 Map.of("field", "merged_stats", "type", "empty"));
         }
     }
@@ -108,7 +108,7 @@ public class MonitorSinker implements Sinker {
             bs.getReasonResult().getVerifyRecords().isEmpty()) {
             return;
         }
-        statsdClient.incrementCounter(MONITOR_METRIC,
+        metricsClient.incrementCounter(MONITOR_METRIC,
             Map.of("field", "verify_records", "type", "exist"));
     }
 }
