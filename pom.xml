@@ -164,6 +164,13 @@
         <artifactId>minio</artifactId>
         <version>8.5.7</version>
       </dependency>
+
+      <!-- JavaCV Platform (封装 FFmpeg, OpenCV 等) -->
+      <dependency>
+        <groupId>org.bytedeco</groupId>
+        <artifactId>javacv-platform</artifactId>
+        <version>1.5.9</version>
+      </dependency>
     </dependencies>
 
     <build>

@@ -129,3 +129,12 @@ management:
   endpoint:
     health:
       show-details: always
+
+# 定时任务配置
+scheduler:
+  video-list:
+    enabled: ${SCHEDULER_VIDEO_LIST_ENABLED:true}
+    bucket: ${SCHEDULER_VIDEO_LIST_BUCKET:}
+    prefix: ${SCHEDULER_VIDEO_LIST_PREFIX:}
+    mq-topic: ${SCHEDULER_VIDEO_LIST_MQ_TOPIC:ocr_video_capture}
+    redis-ttl-days: ${SCHEDULER_VIDEO_LIST_REDIS_TTL_DAYS:30}

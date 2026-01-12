@@ -210,6 +210,60 @@ public class S3Client {
     }
     
     /**
+     * 获取S3对象的输入流（用于流式处理，不下载到本地）
+     * 
+     * @param bucketName 桶名称
+     * @param objectKey 对象键
+     * @return 输入流，使用完毕后需要关闭
+     * @throws Exception 获取失败时抛出异常
+     */
+    public java.io.InputStream getObjectStream(String bucketName, String objectKey) throws Exception {
+        MinioClient client = getClient(bucketName);
+        if (client == null) {
+            throw new Exception(String.format("S3 client not configured for bucket=%s", bucketName));
+        }
+        
+        if (runtimeConfig == null) {
+            throw new Exception("S3 客户端未初始化（配置错误）");
+        }
+        
+        int maxRetries = runtimeConfig.getDownloadMaxRetries();
+        Duration retryDelay = runtimeConfig.getDownloadRetryDelay();
+        double backoffMultiplier = runtimeConfig.getDownloadBackoffMultiplier();
+        
+        Exception lastErr = null;
+        long delayMs = retryDelay.toMillis();
+        
+        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                return client.getObject(
+                    GetObjectArgs.builder()
+                        .bucket(bucketName)
+                        .object(objectKey)
+                        .build()
+                );
+                
+            } catch (Exception e) {
+                lastErr = e;
+                
+                if (!isRetryableError(e)) {
+                    break;
+                }
+                
+                if (attempt < maxRetries) {
+                    log.warn("获取S3流失败，准备重试: {} (第{}次重试，{}ms后重试) - {}", 
+                        objectKey, attempt + 1, delayMs, e.getMessage());
+                    Thread.sleep(delayMs);
+                    delayMs = (long) (delayMs * backoffMultiplier);
+                }
+            }
+        }
+        
+        throw new Exception(String.format("获取S3流失败，已重试%d次: %s", 
+            maxRetries, lastErr != null ? lastErr.getMessage() : "未知错误"));
+    }
+    
+    /**
      * 下载文件，支持重试
      */
     public void downloadFile(String bucketName, String objectKey, String filePath) throws Exception {
