@@ -1,4 +1,4 @@
-# LLM Data Collect Service
+# Project Nebula
 
 基于 Spring Boot 的 LLM 数据收集与处理服务。
 
@@ -41,7 +41,7 @@
 mvn clean package
 
 # 运行
-java -jar target/LLM-data-collect-1.0.0-SNAPSHOT.jar
+java -jar target/Project-Nebula-1.0.0-SNAPSHOT.jar
 ```
 
 ## 业务模块

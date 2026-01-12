@@ -1,6 +1,6 @@
 spring:
   application:
-    name: LLM-data-collect
+    name: Project-Nebula
   profiles:
     active: ${APP_ENV:prod}
 
@@ -88,7 +88,7 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
   file:
-    name: ./log/llm-data-collect.log
+    name: ./log/project-nebula.log
     max-size: 100MB
     max-history: 30
 
@@ -96,7 +96,7 @@ logging:
 rocketmq:
   name-server: ${ROCKETMQ_NAME_SERVER:localhost:9876}
   producer:
-    group: ${ROCKETMQ_PRODUCER_GROUP:llm-data-collect-producer-group}
+    group: ${ROCKETMQ_PRODUCER_GROUP:project-nebula-producer-group}
     send-message-timeout: 3000
     retry-times-when-send-failed: 3
     retry-times-when-send-async-failed: 3
@@ -159,7 +159,7 @@ nacos:
   config:
     enabled: ${NACOS_CONFIG_ENABLED:true}
     group: ${NACOS_CONFIG_GROUP:DEFAULT_GROUP}
-    app-id: ${NACOS_CONFIG_APP_ID:llm-data-collect}
+    app-id: ${NACOS_CONFIG_APP_ID:project-nebula}
     # 是否启用本地配置回退（当 Nacos 不可用时，从 classpath:config/ 目录加载配置）
     fallback-to-local: ${NACOS_CONFIG_FALLBACK_TO_LOCAL:true}
   # 服务注册配置

@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * LLM Data Collect Service - Java Version
+ * Project Nebula - LLM Data Collect Service
  * 主启动类
  */
 @SpringBootApplication

@@ -78,7 +78,7 @@ public class NacosConfigService implements AppConfigService {
     /**
      * Nacos 应用ID
      */
-    @Value("${nacos.config.app-id:llm-data-collect}")
+    @Value("${nacos.config.app-id:project-nebula}")
     private String appId;
     
     private boolean initialized = false;

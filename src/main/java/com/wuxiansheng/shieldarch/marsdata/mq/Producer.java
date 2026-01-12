@@ -34,7 +34,7 @@ public class Producer {
     @Value("${rocketmq.name-server:localhost:9876}")
     private String nameServer;
     
-    @Value("${rocketmq.producer.group:llm-data-collect-producer-group}")
+    @Value("${rocketmq.producer.group:project-nebula-producer-group}")
     private String producerGroup;
     
     @Value("${rocketmq.producer.send-message-timeout:3000}")

@@ -49,7 +49,7 @@ nacos:
   config:
     enabled: true
     group: DEFAULT_GROUP
-    app-id: llm-data-collect
+    app-id: project-nebula
 
 # 配置服务选择（优先使用 Nacos）
 config:

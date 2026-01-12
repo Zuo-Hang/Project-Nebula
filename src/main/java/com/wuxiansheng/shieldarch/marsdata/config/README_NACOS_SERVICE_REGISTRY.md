@@ -40,7 +40,7 @@ nacos:
 export NACOS_SERVICE_REGISTRY_ENABLED=true
 
 # 服务名称
-export NACOS_SERVICE_REGISTRY_SERVICE_NAME=llm-data-collect
+export NACOS_SERVICE_REGISTRY_SERVICE_NAME=project-nebula
 
 # 服务组名
 export NACOS_SERVICE_REGISTRY_GROUP_NAME=DEFAULT_GROUP
@@ -65,9 +65,9 @@ export NACOS_SERVICE_REGISTRY_METADATA=version=1.0.0,env=prod
 
 ### 服务名称（service-name）
 
-- **默认值**: `${spring.application.name}`（即 `LLM-data-collect`）
+- **默认值**: `${spring.application.name}`（即 `Project-Nebula`）
 - **说明**: 注册到 Nacos 的服务名称
-- **示例**: `llm-data-collect`
+- **示例**: `project-nebula`
 
 ### 服务组名（group-name）
 
@@ -142,10 +142,10 @@ nacos:
   server-addr: 127.0.0.1:8848
   service-registry:
     enabled: true
-    service-name: llm-data-collect
+    service-name: project-nebula
 ```
 
-**结果**: 服务会以 `llm-data-collect` 名称注册到 Nacos，IP 和端口自动获取。
+**结果**: 服务会以 `project-nebula` 名称注册到 Nacos，IP 和端口自动获取。
 
 ### 示例 2: 指定 IP 和权重
 
@@ -154,7 +154,7 @@ nacos:
   server-addr: 127.0.0.1:8848
   service-registry:
     enabled: true
-    service-name: llm-data-collect
+    service-name: project-nebula
     ip: 192.168.1.100
     weight: 2.0
 ```
@@ -168,7 +168,7 @@ nacos:
   server-addr: 127.0.0.1:8848
   service-registry:
     enabled: true
-    service-name: llm-data-collect
+    service-name: project-nebula
     metadata: version=1.0.0,env=prod,region=beijing
 ```
 
@@ -180,7 +180,7 @@ nacos:
 ```yaml
 nacos:
   service-registry:
-    service-name: llm-data-collect-dev
+    service-name: project-nebula-dev
     group-name: DEV_GROUP
     metadata: env=dev,version=1.0.0-SNAPSHOT
 ```
@@ -189,7 +189,7 @@ nacos:
 ```yaml
 nacos:
   service-registry:
-    service-name: llm-data-collect
+    service-name: project-nebula
     group-name: PROD_GROUP
     metadata: env=prod,version=1.0.0
 ```
@@ -204,10 +204,10 @@ nacos:
 
 ```bash
 # 查询服务实例列表
-curl "http://127.0.0.1:8848/nacos/v1/ns/instance/list?serviceName=llm-data-collect&namespaceId="
+curl "http://127.0.0.1:8848/nacos/v1/ns/instance/list?serviceName=project-nebula&namespaceId="
 
 # 查询服务详情
-curl "http://127.0.0.1:8848/nacos/v1/ns/service?serviceName=llm-data-collect&namespaceId="
+curl "http://127.0.0.1:8848/nacos/v1/ns/service?serviceName=project-nebula&namespaceId="
 ```
 
 ### 3. 查看应用日志
@@ -215,7 +215,7 @@ curl "http://127.0.0.1:8848/nacos/v1/ns/service?serviceName=llm-data-collect&nam
 应用启动时会输出服务注册日志：
 
 ```
-INFO  NacosServiceRegistry - 服务注册成功: serviceName=llm-data-collect, groupName=DEFAULT_GROUP, ip=192.168.1.100, port=8080, weight=1.0, healthy=true, ephemeral=true
+INFO  NacosServiceRegistry - 服务注册成功: serviceName=project-nebula, groupName=DEFAULT_GROUP, ip=192.168.1.100, port=8080, weight=1.0, healthy=true, ephemeral=true
 ```
 
 ## 🛠️ 高级用法
