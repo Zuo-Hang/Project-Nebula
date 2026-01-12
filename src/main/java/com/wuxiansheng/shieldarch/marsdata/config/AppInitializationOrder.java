@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
  *    - 初始化Redis客户端（RedissonClient，如果配置了）
  * 
  * 2. @PostConstruct阶段（按依赖顺序）
- *    - ApolloConfigService.init() - Apollo配置初始化
+ *    - NacosConfigService.init() - Nacos配置中心初始化
  *    - BusinessRegistrationConfig.registerDependencies() - 业务注册
  *    - RedisWrapper.initRedisClient() - Redis客户端初始化（如果需要）
  *    - MysqlWrapper.initMysql() - MySQL连接初始化
@@ -44,9 +44,9 @@ public class AppInitializationOrder {
     /**
      * 初始化顺序说明（供参考）
      * 
-     * 1. initLogger - 日志初始化
-     * 2. initApollo - Apollo配置初始化
-     * 3. InitConfig - 配置文件加载
+ * 1. initLogger - 日志初始化
+ * 2. initNacos - Nacos配置中心初始化
+ * 3. InitConfig - 配置文件加载
      * 4. LoadBaseConfigWithEnv - 基础配置加载
      * 5. InitRedisClient - Redis初始化
      * 6. introspection.SetupFromConfig - DiSF初始化

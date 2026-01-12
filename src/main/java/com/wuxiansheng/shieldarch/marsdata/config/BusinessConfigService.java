@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class BusinessConfigService {
     
     @Autowired
-    private ApolloConfigService apolloConfigService;
+    private AppConfigService appConfigService;
     
     @Autowired
     private ObjectMapper objectMapper;
@@ -30,7 +30,7 @@ public class BusinessConfigService {
     private final List<String> allBusinessNames = new ArrayList<>();
     
     /**
-     * 业务配置缓存（每次从Apollo获取）
+     * 业务配置缓存（每次从配置中心获取）
      */
     private Map<String, BusinessConf> businessConfCache = new ConcurrentHashMap<>();
     
@@ -46,19 +46,19 @@ public class BusinessConfigService {
     }
     
     /**
-     * 获取所有业务配置（从Apollo获取并解析）
+     * 获取所有业务配置（从配置中心获取并解析）
      * 
      * @return 业务配置Map，key为业务名称，value为业务配置
      */
-    public Map<String, BusinessConf> getAllBusinessConfFromApollo() {
+    public Map<String, BusinessConf> getAllBusinessConf() {
         Map<String, BusinessConf> result = new HashMap<>();
         
-        // 从Apollo获取配置
-        Map<String, String> params = apolloConfigService.getConfig(ApolloConfigService.OCR_BUSINESS_CONF);
+        // 从配置中心获取配置
+        Map<String, String> params = appConfigService.getConfig(AppConfigService.OCR_BUSINESS_CONF);
         
-        // 如果Apollo配置获取失败，使用默认配置
+        // 如果配置获取失败，使用默认配置
         if (params.isEmpty()) {
-            log.warn("从Apollo获取业务配置失败，使用默认配置");
+            log.warn("从配置中心获取业务配置失败，使用默认配置");
             params = getDefaultBusinessConfs();
         }
         
@@ -93,7 +93,7 @@ public class BusinessConfigService {
      * @return 业务配置，如果不存在则返回null
      */
     public BusinessConf getBusinessConf(String businessName) {
-        Map<String, BusinessConf> confsMap = getAllBusinessConfFromApollo();
+        Map<String, BusinessConf> confsMap = getAllBusinessConf();
         BusinessConf conf = confsMap.get(businessName);
         
         if (conf == null) {
@@ -112,7 +112,7 @@ public class BusinessConfigService {
     public List<String> getSourceBusinessNames(String sourceUniqueId) {
         List<String> result = new ArrayList<>();
         
-        Map<String, BusinessConf> allConfs = getAllBusinessConfFromApollo();
+        Map<String, BusinessConf> allConfs = getAllBusinessConf();
         
         for (BusinessConf businessConf : allConfs.values()) {
             // 跳过未启用的业务
@@ -293,11 +293,6 @@ public class BusinessConfigService {
          * 是否测试环境
          */
         private boolean isTest;
-        
-        /**
-         * 重要等级 P0, P1, P2
-         */
-        private int level;
         
         /**
          * 重要等级 P0, P1, P2

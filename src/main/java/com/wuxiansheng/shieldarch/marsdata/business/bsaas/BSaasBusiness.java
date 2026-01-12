@@ -1,7 +1,7 @@
 package com.wuxiansheng.shieldarch.marsdata.business.bsaas;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wuxiansheng.shieldarch.marsdata.config.ApolloConfigService;
+import com.wuxiansheng.shieldarch.marsdata.config.LLMConfigHelper;
 import com.wuxiansheng.shieldarch.marsdata.llm.*;
 import com.wuxiansheng.shieldarch.marsdata.llm.classify.SimpleClassifier;
 import lombok.Data;
@@ -33,7 +33,7 @@ public class BSaasBusiness implements Business, ClassifyProvider {
     private BSaasReasonResult reasonResult;
     
     @Autowired(required = false)
-    private ApolloConfigService apolloConfigService;
+    private LLMConfigHelper llmConfigHelper;
     
     @Autowired(required = false)
     private ObjectMapper objectMapper;
@@ -66,11 +66,11 @@ public class BSaasBusiness implements Business, ClassifyProvider {
             
             for (String classify : image.getTypes()) {
                 String prompt = getDefaultPrompt(classify);
-                if (apolloConfigService != null) {
-                    String apolloPrompt = apolloConfigService.getLLMPromptWithClassify(
+                if (llmConfigHelper != null) {
+                    String configPrompt = llmConfigHelper.getLLMPromptWithClassify(
                         businessName, classify, prompt);
-                    if (apolloPrompt != null && !apolloPrompt.isEmpty()) {
-                        prompt = apolloPrompt;
+                    if (configPrompt != null && !configPrompt.isEmpty()) {
+                        prompt = configPrompt;
                     }
                 }
                 
@@ -295,7 +295,7 @@ public class BSaasBusiness implements Business, ClassifyProvider {
      * 获取默认prompt
      */
     private String getDefaultPrompt(String category) {
-        // 由于prompt非常长，这里只返回空字符串，实际应该从Apollo获取
+        // 由于prompt非常长，这里只返回空字符串，实际应该从配置中心获取
         return "";
     }
 }

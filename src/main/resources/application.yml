@@ -72,7 +72,7 @@ spring:
       config: |
         singleServerConfig:
           address: ${REDIS_ADDRESS:redis://localhost:6379}
-          password: ${REDIS_PASSWORD:}
+          password: ${REDIS_PASSWORD:redis123456}
           connectionPoolSize: 100
           connectionMinimumIdleSize: 10
           idleConnectionTimeout: 300000
@@ -138,3 +138,21 @@ scheduler:
     prefix: ${SCHEDULER_VIDEO_LIST_PREFIX:}
     mq-topic: ${SCHEDULER_VIDEO_LIST_MQ_TOPIC:ocr_video_capture}
     redis-ttl-days: ${SCHEDULER_VIDEO_LIST_REDIS_TTL_DAYS:30}
+
+# LLM 配置
+llm:
+  use-langchain4j: ${LLM_USE_LANGCHAIN4J:true}
+
+# Nacos 配置（服务发现 + 配置中心）
+nacos:
+  enabled: ${NACOS_ENABLED:true}
+  server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+  namespace: ${NACOS_NAMESPACE:}
+  username: ${NACOS_USERNAME:nacos}
+  password: ${NACOS_PASSWORD:nacos}
+  config:
+    enabled: ${NACOS_CONFIG_ENABLED:true}
+    group: ${NACOS_CONFIG_GROUP:DEFAULT_GROUP}
+    app-id: ${NACOS_CONFIG_APP_ID:llm-data-collect}
+    # 是否启用本地配置回退（当 Nacos 不可用时，从 classpath:config/ 目录加载配置）
+    fallback-to-local: ${NACOS_CONFIG_FALLBACK_TO_LOCAL:true}

@@ -1,7 +1,7 @@
 package com.wuxiansheng.shieldarch.marsdata.business.xlprice.poster;
 
 import com.wuxiansheng.shieldarch.marsdata.business.xlprice.XLPriceRuleBusiness;
-import com.wuxiansheng.shieldarch.marsdata.config.ApolloConfigService;
+import com.wuxiansheng.shieldarch.marsdata.config.LLMConfigHelper;
 import com.wuxiansheng.shieldarch.marsdata.config.CityMap;
 import com.wuxiansheng.shieldarch.marsdata.llm.Business;
 import com.wuxiansheng.shieldarch.marsdata.llm.BusinessContext;
@@ -20,7 +20,7 @@ import java.util.Map;
 public class XLPriceFillCity implements Poster {
     
     @Autowired
-    private ApolloConfigService apolloConfigService;
+    private LLMConfigHelper llmConfigHelper;
     
     @Override
     public Business apply(BusinessContext bctx, Business business) {
@@ -35,7 +35,10 @@ public class XLPriceFillCity implements Poster {
         }
         
         // 使用rule_id标识城市，而不是采集商填写，避免采集商填写错误
-        Map<Integer, String> ruleIdToCityNameMap = apolloConfigService.getXLRuleIdToCityNameMap();
+        if (llmConfigHelper == null) {
+            return gb;
+        }
+        Map<Integer, String> ruleIdToCityNameMap = llmConfigHelper.getXLRuleIdToCityNameMap();
         String cityName = ruleIdToCityNameMap.get(gb.getData().getRuleID());
         
         if (cityName != null) {

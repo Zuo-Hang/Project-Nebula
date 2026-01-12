@@ -1,12 +1,14 @@
 package com.wuxiansheng.shieldarch.marsdata.llm;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wuxiansheng.shieldarch.marsdata.config.ApolloConfigService;
+import com.wuxiansheng.shieldarch.marsdata.config.AppConfigService;
+import com.wuxiansheng.shieldarch.marsdata.llm.langchain4j.LangChain4jLLMService;
 import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
 import com.wuxiansheng.shieldarch.marsdata.utils.DiSFUtils;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -33,10 +35,19 @@ public class LLMClient {
     private StatsdClient statsdClient;
     
     @Autowired
-    private ApolloConfigService apolloConfigService;
+    private AppConfigService appConfigService;
     
     @Autowired(required = false)
     private DiSFUtils diSFUtils;
+    
+    @Autowired(required = false)
+    private LangChain4jLLMService langChain4jLLMService;
+    
+    /**
+     * 是否使用 LangChain4j（可配置，默认 true）
+     */
+    @Value("${llm.use-langchain4j:true}")
+    private boolean useLangChain4j;
     
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
@@ -181,7 +192,7 @@ public class LLMClient {
     }
     
     /**
-     * 请求LLM
+     * 请求LLM（核心方法，使用 LangChain4j 重构）
      * 
      * @param request LLM请求
      * @return LLM响应
@@ -191,63 +202,13 @@ public class LLMClient {
         Exception error = null;
         
         try {
-            // 构建消息
-            LLMMessage message = new LLMMessage();
-            message.setRole("user");
-            
-            List<LLMMessageContent> contents = new ArrayList<>();
-            // 文本内容
-            LLMMessageContent textContent = new LLMMessageContent();
-            textContent.setType("text");
-            textContent.setText(request.getPrompt());
-            contents.add(textContent);
-            
-            // 图片内容
-            LLMMessageContent imageContent = new LLMMessageContent();
-            imageContent.setType("image_url");
-            MessageImageUrl imageUrl = new MessageImageUrl();
-            imageUrl.setUrl(request.getReqUrl());
-            imageContent.setImageUrl(imageUrl);
-            contents.add(imageContent);
-            
-            message.setContent(contents);
-            
-            // 构建请求体
-            LLMRequest llmReq = objectMapper.readValue(request.getParams(), LLMRequest.class);
-            llmReq.setMessages(List.of(message));
-            
-            // 获取HTTP端点
-            String endpoint = getHttpEndpoint(request.getLlmDisfName());
-            if (endpoint == null || endpoint.isEmpty()) {
-                throw new Exception("no valid llm endpoint: " + request.getLlmDisfName());
+            // 如果启用了 LangChain4j 且服务可用，使用 LangChain4j
+            if (useLangChain4j && langChain4jLLMService != null) {
+                return requestLLMWithLangChain4j(request, beginTime);
             }
             
-            String url = "http://" + endpoint + "/v1/chat/completions";
-            
-            // 发送HTTP请求
-            String requestBody = objectMapper.writeValueAsString(llmReq);
-            HttpRequest httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("Content-Type", "application/json")
-                    .headers(request.getHeaders().entrySet().stream()
-                            .flatMap(e -> java.util.stream.Stream.of(e.getKey(), e.getValue()))
-                            .toArray(String[]::new))
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                    .timeout(Duration.ofSeconds(60))
-                    .build();
-            
-            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-            
-            if (response.statusCode() != 200) {
-                throw new Exception("HTTP请求失败: statusCode=" + response.statusCode() + ", body=" + response.body());
-            }
-            
-            // 解析响应
-            LLMResponse llmResponse = objectMapper.readValue(response.body(), LLMResponse.class);
-            
-            log.info("requestLLM pic_url: {}, cost: {}ms", request.getReqUrl(), System.currentTimeMillis() - beginTime);
-            
-            return llmResponse;
+            // 否则使用原有实现（向后兼容）
+            return requestLLMLegacy(request, beginTime);
             
         } catch (Exception e) {
             error = e;
@@ -264,14 +225,125 @@ public class LLMClient {
     }
     
     /**
+     * 使用 LangChain4j 调用 LLM（新实现）
+     */
+    private LLMResponse requestLLMWithLangChain4j(RequestLLMRequest request, long beginTime) throws Exception {
+        try {
+            // 使用 LangChain4j 调用
+            String content = langChain4jLLMService.generate(
+                request.getCaller(), 
+                request.getPrompt(), 
+                request.getReqUrl()
+            );
+            
+            // 构建响应对象（保持原有格式）
+            LLMResponse llmResponse = new LLMResponse();
+            llmResponse.setId("langchain4j-" + System.currentTimeMillis());
+            llmResponse.setObject("chat.completion");
+            llmResponse.setCreated(System.currentTimeMillis() / 1000);
+            llmResponse.setModel("langchain4j");
+            
+            LLMResponse.LLMResponseChoice choice = new LLMResponse.LLMResponseChoice();
+            choice.setIndex(0);
+            LLMResponse.LLMResponseMessage message = new LLMResponse.LLMResponseMessage();
+            message.setRole("assistant");
+            message.setContent(content);
+            choice.setMessage(message);
+            choice.setFinishReason("stop");
+            
+            llmResponse.setChoices(List.of(choice));
+            
+            LLMResponse.LLMResponseUsage usage = new LLMResponse.LLMResponseUsage();
+            usage.setPromptTokens(0); // LangChain4j 可能不提供，需要从响应中提取
+            usage.setCompletionTokens(0);
+            usage.setTotalTokens(0);
+            llmResponse.setUsage(usage);
+            
+            log.info("requestLLM (LangChain4j) pic_url: {}, cost: {}ms", 
+                request.getReqUrl(), System.currentTimeMillis() - beginTime);
+            
+            return llmResponse;
+            
+        } catch (Exception e) {
+            log.error("LangChain4j 调用失败，回退到原有实现: error={}", e.getMessage(), e);
+            // 如果 LangChain4j 调用失败，回退到原有实现
+            return requestLLMLegacy(request, beginTime);
+        }
+    }
+    
+    /**
+     * 原有实现（保留作为回退方案）
+     */
+    private LLMResponse requestLLMLegacy(RequestLLMRequest request, long beginTime) throws Exception {
+        // 构建消息
+        LLMMessage message = new LLMMessage();
+        message.setRole("user");
+        
+        List<LLMMessageContent> contents = new ArrayList<>();
+        // 文本内容
+        LLMMessageContent textContent = new LLMMessageContent();
+        textContent.setType("text");
+        textContent.setText(request.getPrompt());
+        contents.add(textContent);
+        
+        // 图片内容
+        LLMMessageContent imageContent = new LLMMessageContent();
+        imageContent.setType("image_url");
+        MessageImageUrl imageUrl = new MessageImageUrl();
+        imageUrl.setUrl(request.getReqUrl());
+        imageContent.setImageUrl(imageUrl);
+        contents.add(imageContent);
+        
+        message.setContent(contents);
+        
+        // 构建请求体
+        LLMRequest llmReq = objectMapper.readValue(request.getParams(), LLMRequest.class);
+        llmReq.setMessages(List.of(message));
+        
+        // 获取HTTP端点
+        String endpoint = getHttpEndpoint(request.getLlmDisfName());
+        if (endpoint == null || endpoint.isEmpty()) {
+            throw new Exception("no valid llm endpoint: " + request.getLlmDisfName());
+        }
+        
+        String url = "http://" + endpoint + "/v1/chat/completions";
+        
+        // 发送HTTP请求
+        String requestBody = objectMapper.writeValueAsString(llmReq);
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .headers(request.getHeaders().entrySet().stream()
+                        .flatMap(e -> java.util.stream.Stream.of(e.getKey(), e.getValue()))
+                        .toArray(String[]::new))
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .timeout(Duration.ofSeconds(60))
+                .build();
+        
+        HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+        
+        if (response.statusCode() != 200) {
+            throw new Exception("HTTP请求失败: statusCode=" + response.statusCode() + ", body=" + response.body());
+        }
+        
+        // 解析响应
+        LLMResponse llmResponse = objectMapper.readValue(response.body(), LLMResponse.class);
+        
+        log.info("requestLLM (Legacy) pic_url: {}, cost: {}ms", 
+            request.getReqUrl(), System.currentTimeMillis() - beginTime);
+        
+        return llmResponse;
+    }
+    
+    /**
      * 获取LLM集群配置
      */
     private LLMClusterConf getLLMClusterConf(String businessName) {
         LLMClusterConf defaultConf = getDefaultLLMClusterConf();
         
-        Map<String, String> params = apolloConfigService.getConfig(ApolloConfigService.OCR_LLM_CONF);
+        Map<String, String> params = appConfigService.getConfig(AppConfigService.OCR_LLM_CONF);
         if (params.isEmpty()) {
-            log.error("获取Apollo配置失败: {}, 使用默认配置", ApolloConfigService.OCR_LLM_CONF);
+            log.error("获取配置失败: {}, 使用默认配置", AppConfigService.OCR_LLM_CONF);
             return defaultConf;
         }
         

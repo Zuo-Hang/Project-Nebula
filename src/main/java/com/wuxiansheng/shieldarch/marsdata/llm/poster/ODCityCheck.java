@@ -1,6 +1,6 @@
 package com.wuxiansheng.shieldarch.marsdata.llm.poster;
 
-import com.wuxiansheng.shieldarch.marsdata.config.ApolloConfigService;
+import com.wuxiansheng.shieldarch.marsdata.config.LLMConfigHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -19,7 +19,7 @@ public class ODCityCheck {
     public static final String CITY_ERROR = "城市错误";
     
     @Autowired(required = false)
-    private ApolloConfigService apolloConfigService;
+    private LLMConfigHelper llmConfigHelper;
     
     /**
      * 检查OD城市
@@ -35,12 +35,12 @@ public class ODCityCheck {
             return CITY_UNKNOWN;
         }
         
-        if (apolloConfigService == null) {
+        if (llmConfigHelper == null) {
             return CITY_UNKNOWN;
         }
         
         // 获取OD配置
-        Map<String, String> odCityMap = apolloConfigService.getODs(businessName);
+        Map<String, String> odCityMap = llmConfigHelper.getODs(businessName);
         if (odCityMap.isEmpty()) {
             return CITY_UNKNOWN;
         }

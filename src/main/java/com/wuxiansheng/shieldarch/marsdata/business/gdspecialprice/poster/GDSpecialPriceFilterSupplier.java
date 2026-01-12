@@ -2,7 +2,7 @@ package com.wuxiansheng.shieldarch.marsdata.business.gdspecialprice.poster;
 
 import com.wuxiansheng.shieldarch.marsdata.business.gdspecialprice.GDSpecialPriceBusiness;
 import com.wuxiansheng.shieldarch.marsdata.business.gdspecialprice.ReasonSupplierResult;
-import com.wuxiansheng.shieldarch.marsdata.config.ApolloConfigService;
+import com.wuxiansheng.shieldarch.marsdata.config.LLMConfigHelper;
 import com.wuxiansheng.shieldarch.marsdata.llm.Business;
 import com.wuxiansheng.shieldarch.marsdata.llm.BusinessContext;
 import com.wuxiansheng.shieldarch.marsdata.llm.Poster;
@@ -23,7 +23,7 @@ import java.util.Map;
 public class GDSpecialPriceFilterSupplier implements Poster {
     
     @Autowired
-    private ApolloConfigService apolloConfigService;
+    private LLMConfigHelper llmConfigHelper;
     
     @Autowired(required = false)
     private StatsdClient statsdClient;
@@ -45,8 +45,7 @@ public class GDSpecialPriceFilterSupplier implements Poster {
         String businessName = business.getName();
         
         for (ReasonSupplierResult supplierInfo : gb.getReasonResult().getSuppliersInfo()) {
-            if (apolloConfigService != null && 
-                apolloConfigService.isValidGDSupplier(supplierInfo.getSupplier())) {
+            if (llmConfigHelper != null && llmConfigHelper.isValidGDSupplier(supplierInfo.getSupplier())) {
                 validSuppliers.add(supplierInfo);
             } else {
                 // 上报被过滤的供应商

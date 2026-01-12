@@ -1,7 +1,7 @@
 package com.wuxiansheng.shieldarch.marsdata.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wuxiansheng.shieldarch.marsdata.config.ApolloConfigService;
+import com.wuxiansheng.shieldarch.marsdata.config.AppConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class VideoFrameExtractionConfigService {
 
     @Autowired(required = false)
-    private ApolloConfigService apolloConfigService;
+    private AppConfigService appConfigService;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -74,16 +74,16 @@ public class VideoFrameExtractionConfigService {
             log.warn("从配置文件加载链路配置失败: pipelineName={}, error={}", pipelineName, e.getMessage());
         }
 
-        // 尝试从 Apollo 加载
-        if (apolloConfigService != null) {
+        // 尝试从配置中心加载
+        if (appConfigService != null) {
             try {
-                VideoFrameExtractionConfig config = loadFromApollo(pipelineName);
+                VideoFrameExtractionConfig config = loadFromConfigService(pipelineName);
                 if (config != null) {
                     configCache.put(pipelineName, config);
                     return config;
                 }
             } catch (Exception e) {
-                log.warn("从 Apollo 加载链路配置失败: pipelineName={}, error={}", pipelineName, e.getMessage());
+                log.warn("从配置中心加载链路配置失败: pipelineName={}, error={}", pipelineName, e.getMessage());
             }
         }
 
@@ -178,11 +178,11 @@ public class VideoFrameExtractionConfigService {
     }
 
     /**
-     * 从 Apollo 加载配置
+     * 从配置中心加载配置
      */
-    private VideoFrameExtractionConfig loadFromApollo(String pipelineName) {
-        // TODO: 实现从 Apollo 加载配置的逻辑
-        // 可以从 Apollo 的特定 namespace 和 key 读取配置
+    private VideoFrameExtractionConfig loadFromConfigService(String pipelineName) {
+        // TODO: 实现从配置中心加载配置的逻辑
+        // 可以从配置中心的特定 namespace 和 key 读取配置
         return null;
     }
 

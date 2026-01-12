@@ -16,7 +16,7 @@ import java.util.Map;
 public class ExpireConfigService {
     
     @Autowired
-    private ApolloConfigService apolloConfigService;
+    private AppConfigService appConfigService;
     
     /**
      * 默认过期阈值（秒）：48小时
@@ -30,10 +30,10 @@ public class ExpireConfigService {
      * @return 是否使用过期数据
      */
     public boolean isUseExpireData(String businessName) {
-        Map<String, String> params = apolloConfigService.getConfig(ApolloConfigService.OCR_LLM_CONF);
+        Map<String, String> params = appConfigService.getConfig(AppConfigService.OCR_LLM_CONF);
         
         if (params.isEmpty()) {
-            log.error("获取Apollo配置失败: {}", ApolloConfigService.OCR_LLM_CONF);
+            log.error("获取配置失败: {}", AppConfigService.OCR_LLM_CONF);
             return false;
         }
         
@@ -53,11 +53,11 @@ public class ExpireConfigService {
      * @return 过期阈值（秒），默认48小时
      */
     public long getExpireDataThreshold(String businessName) {
-        Map<String, String> params = apolloConfigService.getConfig(ApolloConfigService.OCR_LLM_CONF);
+        Map<String, String> params = appConfigService.getConfig(AppConfigService.OCR_LLM_CONF);
         
         if (params.isEmpty()) {
-            log.error("获取Apollo配置失败: {}, 使用默认值: {}", 
-                ApolloConfigService.OCR_LLM_CONF, DEFAULT_EXPIRE_THRESHOLD);
+            log.error("获取配置失败: {}, 使用默认值: {}", 
+                AppConfigService.OCR_LLM_CONF, DEFAULT_EXPIRE_THRESHOLD);
             return DEFAULT_EXPIRE_THRESHOLD;
         }
         

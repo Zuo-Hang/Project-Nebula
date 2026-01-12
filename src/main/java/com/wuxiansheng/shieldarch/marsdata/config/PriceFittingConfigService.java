@@ -1,15 +1,15 @@
 package com.wuxiansheng.shieldarch.marsdata.config;
 
-import com.ctrip.framework.apollo.Config;
-import com.ctrip.framework.apollo.ConfigService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 特价车价格拟合配置服务
@@ -18,7 +18,10 @@ import java.util.List;
 @Component
 public class PriceFittingConfigService {
 
-    private static final String PRICE_FITTING_CONF = "PRICE_FITTING_CONF";
+    @Autowired
+    private AppConfigService appConfigService;
+
+    private static final String PRICE_FITTING_CONF = AppConfigService.PRICE_FITTING_CONF;
     private static final String PRICE_FITTING_OPENED_CITIES_KEY = "price_fitting_opened_cities";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -31,13 +34,13 @@ public class PriceFittingConfigService {
      */
     public List<String> getPriceFittingOpenedCities() {
         try {
-            Config priceFittingConfig = ConfigService.getConfig(PRICE_FITTING_CONF);
-            if (priceFittingConfig == null) {
-                log.warn("[PriceFittingConfigService] 获取 Apollo 配置失败，namespace={}，返回空列表", PRICE_FITTING_CONF);
+            Map<String, String> configMap = appConfigService.getConfig(PRICE_FITTING_CONF);
+            if (configMap == null || configMap.isEmpty()) {
+                log.warn("[PriceFittingConfigService] 获取配置失败，namespace={}，返回空列表", PRICE_FITTING_CONF);
                 return Collections.emptyList();
             }
 
-            String valStr = priceFittingConfig.getProperty(PRICE_FITTING_OPENED_CITIES_KEY, "");
+            String valStr = configMap.getOrDefault(PRICE_FITTING_OPENED_CITIES_KEY, "");
             if (StringUtils.isBlank(valStr)) {
                 log.info("[PriceFittingConfigService] price_fitting_opened_cities 为空，返回空列表");
                 return Collections.emptyList();

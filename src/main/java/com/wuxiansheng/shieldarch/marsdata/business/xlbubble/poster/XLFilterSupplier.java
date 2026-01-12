@@ -2,7 +2,7 @@ package com.wuxiansheng.shieldarch.marsdata.business.xlbubble.poster;
 
 import com.wuxiansheng.shieldarch.marsdata.business.xlbubble.ReasonSupplierResult;
 import com.wuxiansheng.shieldarch.marsdata.business.xlbubble.XLBubbleBusiness;
-import com.wuxiansheng.shieldarch.marsdata.config.ApolloConfigService;
+import com.wuxiansheng.shieldarch.marsdata.config.LLMConfigHelper;
 import com.wuxiansheng.shieldarch.marsdata.llm.Business;
 import com.wuxiansheng.shieldarch.marsdata.llm.BusinessContext;
 import com.wuxiansheng.shieldarch.marsdata.llm.Poster;
@@ -23,7 +23,7 @@ import java.util.Map;
 public class XLFilterSupplier implements Poster {
     
     @Autowired
-    private ApolloConfigService apolloConfigService;
+    private LLMConfigHelper llmConfigHelper;
     
     @Autowired(required = false)
     private StatsdClient statsdClient;
@@ -44,8 +44,7 @@ public class XLFilterSupplier implements Poster {
         String businessName = business.getName();
         
         for (ReasonSupplierResult supplierInfo : gb.getReasonResult().getSuppliersInfo()) {
-            if (apolloConfigService != null && 
-                apolloConfigService.isValidSupplier(supplierInfo.getSupplier(), businessName)) {
+            if (llmConfigHelper != null && llmConfigHelper.isValidSupplier(supplierInfo.getSupplier(), businessName)) {
                 validSuppliers.add(supplierInfo);
             } else {
                 // 上报被过滤的供应商

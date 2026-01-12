@@ -1,6 +1,6 @@
 package com.wuxiansheng.shieldarch.marsdata.business.gdspecialprice;
 
-import com.wuxiansheng.shieldarch.marsdata.config.ApolloConfigService;
+import com.wuxiansheng.shieldarch.marsdata.config.LLMConfigHelper;
 import com.wuxiansheng.shieldarch.marsdata.llm.ReasonRequest;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +28,7 @@ public class GDSpecialPriceInput {
     private String cityName;
     
     @Autowired(required = false)
-    private ApolloConfigService apolloConfigService;
+    private LLMConfigHelper llmConfigHelper;
     
     /**
      * 生成推理请求列表
@@ -36,12 +36,12 @@ public class GDSpecialPriceInput {
     public List<ReasonRequest> getReasonRequests(String businessName) {
         List<ReasonRequest> requests = new ArrayList<>();
         
-        // 从Apollo获取prompt，如果没有则使用默认值
+        // 从配置中心获取prompt，如果没有则使用默认值
         String prompt = getDefaultPrompt();
-        if (apolloConfigService != null) {
-            String apolloPrompt = apolloConfigService.getLLMPrompt(businessName, prompt);
-            if (apolloPrompt != null && !apolloPrompt.isEmpty()) {
-                prompt = apolloPrompt;
+        if (llmConfigHelper != null) {
+            String configPrompt = llmConfigHelper.getLLMPrompt(businessName, prompt);
+            if (configPrompt != null && !configPrompt.isEmpty()) {
+                prompt = configPrompt;
             }
         }
         

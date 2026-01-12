@@ -33,7 +33,7 @@ public class CouponSpecialPopulationInput {
     public List<ReasonRequest> getReasonRequests() {
         List<ReasonRequest> requests = new ArrayList<>();
         
-        // TODO: 从Apollo获取prompt，目前使用默认值
+        // TODO: 从配置中心获取prompt，目前使用默认值
         String prompt = getDefaultPrompt();
         
         for (String url : couponListAndDetailUrls) {

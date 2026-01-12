@@ -1,6 +1,6 @@
 package com.wuxiansheng.shieldarch.marsdata.llm;
 
-import com.wuxiansheng.shieldarch.marsdata.config.ApolloConfigService;
+import com.wuxiansheng.shieldarch.marsdata.config.AppConfigService;
 import com.wuxiansheng.shieldarch.marsdata.monitor.StatsdClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,7 +31,7 @@ public class ReasonService {
     private StatsdClient statsdClient;
     
     @Autowired
-    private ApolloConfigService apolloConfigService;
+    private AppConfigService appConfigService;
     
     private final ExecutorService executorService = Executors.newCachedThreadPool();
     
@@ -238,7 +238,7 @@ public class ReasonService {
     private int getLLMLocalConcurrent(int level) {
         int[] defaultConcurrents = {150, 70, 50};
         
-        Map<String, String> params = apolloConfigService.getConfig(ApolloConfigService.OCR_LLM_CONF);
+        Map<String, String> params = appConfigService.getConfig(AppConfigService.OCR_LLM_CONF);
         if (params.isEmpty()) {
             return defaultConcurrents[0];
         }

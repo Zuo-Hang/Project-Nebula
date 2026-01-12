@@ -1,7 +1,7 @@
 package com.wuxiansheng.shieldarch.marsdata.llm;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wuxiansheng.shieldarch.marsdata.config.ApolloConfigService;
+import com.wuxiansheng.shieldarch.marsdata.config.AppConfigService;
 import com.wuxiansheng.shieldarch.marsdata.config.ExpireConfigService;
 import com.wuxiansheng.shieldarch.marsdata.io.RedisWrapper;
 import lombok.Data;
@@ -28,7 +28,7 @@ public class LLMCacheService {
     private ObjectMapper objectMapper;
     
     @Autowired
-    private ApolloConfigService apolloConfigService;
+    private AppConfigService appConfigService;
     
     /**
      * 最小缓存TTL（秒）：1分钟
@@ -231,10 +231,10 @@ public class LLMCacheService {
     private long getLLMCacheTTL(String businessName) {
         long defaultVal = DEFAULT_CACHE_TTL_SECONDS;
         
-        Map<String, String> params = apolloConfigService.getConfig(ApolloConfigService.OCR_LLM_CONF);
+        Map<String, String> params = appConfigService.getConfig(AppConfigService.OCR_LLM_CONF);
         if (params.isEmpty()) {
-            log.error("获取Apollo配置失败: {}, 使用默认TTL: {}", 
-                ApolloConfigService.OCR_LLM_CONF, defaultVal);
+            log.error("获取配置失败: {}, 使用默认TTL: {}", 
+                AppConfigService.OCR_LLM_CONF, defaultVal);
             return defaultVal;
         }
         

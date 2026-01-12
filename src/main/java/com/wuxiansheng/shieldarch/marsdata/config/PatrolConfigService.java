@@ -1,11 +1,10 @@
 package com.wuxiansheng.shieldarch.marsdata.config;
 
-import com.ctrip.framework.apollo.Config;
-import com.ctrip.framework.apollo.ConfigService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -25,9 +24,12 @@ import java.util.Map;
 @Component
 public class PatrolConfigService {
 
+    @Autowired
+    private AppConfigService appConfigService;
+
     /**
      */
-    private static final String QUALITY_MONITOR_CONF = "QUALITY_MONITOR_CONF";
+    private static final String QUALITY_MONITOR_CONF = AppConfigService.QUALITY_MONITOR_CONF;
 
     /**
      * 存放配置 key 列表的字段名：city_patrol_conf
@@ -43,14 +45,14 @@ public class PatrolConfigService {
      */
     public Map<String, PatrolConfig> getAllPatrolConfigs() {
         try {
-            Config qualityMonitorConfig = ConfigService.getConfig(QUALITY_MONITOR_CONF);
-            if (qualityMonitorConfig == null) {
-                log.warn("[PatrolConfigService] 获取 Apollo 配置失败，namespace={}，返回空配置", QUALITY_MONITOR_CONF);
+            Map<String, String> configMap = appConfigService.getConfig(QUALITY_MONITOR_CONF);
+            if (configMap == null || configMap.isEmpty()) {
+                log.warn("[PatrolConfigService] 获取配置失败，namespace={}，返回空配置", QUALITY_MONITOR_CONF);
                 return Collections.emptyMap();
             }
 
             // 1. 读取 city_patrol_conf，得到配置 key 列表
-            String confKeysJson = qualityMonitorConfig.getProperty(CITY_PATROL_CONF_KEY, "");
+            String confKeysJson = configMap.getOrDefault(CITY_PATROL_CONF_KEY, "");
             if (StringUtils.isBlank(confKeysJson)) {
                 log.info("[PatrolConfigService] city_patrol_conf 为空，返回空配置");
                 return Collections.emptyMap();
@@ -68,7 +70,7 @@ public class PatrolConfigService {
                 if (StringUtils.isBlank(key)) {
                     continue;
                 }
-                PatrolConfig patrolConfig = loadPatrolConfig(qualityMonitorConfig, key);
+                PatrolConfig patrolConfig = loadPatrolConfig(configMap, key);
                 result.put(key, patrolConfig);
             }
 
@@ -96,8 +98,8 @@ public class PatrolConfigService {
     /**
      * 读取并解析单个 PatrolConfig
      */
-    private PatrolConfig loadPatrolConfig(Config qualityMonitorConfig, String key) {
-        String valStr = qualityMonitorConfig.getProperty(key, "");
+    private PatrolConfig loadPatrolConfig(Map<String, String> configMap, String key) {
+        String valStr = configMap.getOrDefault(key, "");
         if (StringUtils.isBlank(valStr)) {
             log.info("[PatrolConfigService] 巡检配置 key={} 不存在或为空，使用空配置", key);
             return new PatrolConfig();
