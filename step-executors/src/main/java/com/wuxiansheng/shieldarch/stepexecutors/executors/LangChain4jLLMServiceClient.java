@@ -2,6 +2,8 @@ package com.wuxiansheng.shieldarch.stepexecutors.executors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuxiansheng.shieldarch.orchestrator.config.AppConfigService;
+import com.wuxiansheng.shieldarch.orchestrator.monitor.MetricsClient;
+import com.wuxiansheng.shieldarch.orchestrator.orchestrator.LLMServiceClient;
 import com.wuxiansheng.shieldarch.orchestrator.utils.ServiceDiscovery;
 import com.wuxiansheng.shieldarch.statestore.LLMCacheService;
 import dev.langchain4j.data.message.AiMessage;
@@ -11,12 +13,14 @@ import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.Response;
+import dev.langchain4j.model.output.TokenUsage;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,7 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Slf4j
 @Component
-public class LangChain4jLLMServiceClient implements InferenceExecutor.LLMServiceClient {
+public class LangChain4jLLMServiceClient implements LLMServiceClient {
     
     @Autowired
     private ObjectMapper objectMapper;
@@ -42,6 +46,9 @@ public class LangChain4jLLMServiceClient implements InferenceExecutor.LLMService
     
     @Autowired(required = false)
     private LLMCacheService llmCacheService;
+    
+    @Autowired(required = false)
+    private MetricsClient metricsClient;
     
     /**
      * ChatModel 缓存（按业务名称缓存）
@@ -88,7 +95,10 @@ public class LangChain4jLLMServiceClient implements InferenceExecutor.LLMService
         // 6. 提取内容
         String content = response.content().text();
         
-        // 7. 缓存结果
+        // 7. 提取并上报Token使用量
+        reportTokenUsage(response, businessName);
+        
+        // 8. 缓存结果
         if (llmCacheService != null && imageUrl != null && !imageUrl.isEmpty() && content != null) {
             llmCacheService.setLLMCache(imageUrl, businessName, prompt, content);
         }
@@ -97,6 +107,45 @@ public class LangChain4jLLMServiceClient implements InferenceExecutor.LLMService
             businessName, content != null ? content.length() : 0);
         
         return content;
+    }
+    
+    /**
+     * 上报Token使用量指标
+     */
+    private void reportTokenUsage(Response<AiMessage> response, String businessName) {
+        if (metricsClient == null) {
+            return;
+        }
+        
+        try {
+            // 从Response中提取Token使用量
+            TokenUsage tokenUsage = response.tokenUsage();
+            
+            if (tokenUsage != null) {
+                int inputTokenCount = tokenUsage.inputTokenCount();
+                int outputTokenCount = tokenUsage.outputTokenCount();
+                int totalTokenCount = tokenUsage.totalTokenCount();
+                
+                // 上报指标
+                Map<String, String> tags = new HashMap<>();
+                tags.put("business", businessName);
+                tags.put("type", "input");
+                metricsClient.count("llm_token_usage", inputTokenCount, tags);
+                
+                tags.put("type", "output");
+                metricsClient.count("llm_token_usage", outputTokenCount, tags);
+                
+                tags.put("type", "total");
+                metricsClient.count("llm_token_usage", totalTokenCount, tags);
+                
+                log.debug("Token使用量已上报: business={}, input={}, output={}, total={}", 
+                    businessName, inputTokenCount, outputTokenCount, totalTokenCount);
+            } else {
+                log.debug("Response中未包含Token使用量信息");
+            }
+        } catch (Exception e) {
+            log.warn("上报Token使用量失败: business={}, error={}", businessName, e.getMessage());
+        }
     }
     
     /**
@@ -247,12 +296,6 @@ public class LangChain4jLLMServiceClient implements InferenceExecutor.LLMService
         @Override
         public Response<AiMessage> generate(List<dev.langchain4j.data.message.ChatMessage> messages) {
             throw new UnsupportedOperationException("PlaceholderChatModel未实现，需要实现自定义ChatLanguageModel");
-        }
-        
-        @Override
-        public Response<AiMessage> generate(List<dev.langchain4j.data.message.ChatMessage> messages, 
-                                           dev.langchain4j.model.chat.TokenStream tokenStream) {
-            throw new UnsupportedOperationException("PlaceholderChatModel未实现");
         }
     }
 }

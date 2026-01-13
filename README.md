@@ -222,7 +222,11 @@ ai-agent-orchestrator/
 │   ├── ocr-service/            # OCR服务（可独立部署）
 │   └── detection-service/      # 检测服务（可独立部署）
 │
-├── demo-admin/                 # 演示前端（Streamlit）
+├── frontend/                   # 前端项目（React + TypeScript + Vite）
+│   ├── src/                   # 源代码
+│   ├── package.json           # 依赖配置
+│   └── vite.config.ts         # Vite配置
+├── demo-admin/                 # 演示前端（Streamlit，可选）
 │   └── requirements.txt
 │
 ├── mysql/                      # MySQL初始化脚本

@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -57,7 +56,7 @@ public class FrameExtractExecutor implements StepExecutor {
 
         // 2. 视频抽帧
         log.info("2. 视频抽帧...");
-        FrameExtractOptions options = buildFrameExtractOptions(request);
+        VideoExtractor.FrameExtractOptions options = buildFrameExtractOptions(request);
         List<String> frameImages = videoExtractor.extractFrames(localVideoPath, options);
         log.info("抽帧完成，共 {} 张图片", frameImages.size());
 

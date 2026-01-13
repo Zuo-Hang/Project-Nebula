@@ -1,5 +1,6 @@
 package com.wuxiansheng.shieldarch.stepexecutors.executors;
 
+import com.wuxiansheng.shieldarch.orchestrator.orchestrator.LLMServiceClient;
 import com.wuxiansheng.shieldarch.orchestrator.orchestrator.TaskContext;
 import com.wuxiansheng.shieldarch.orchestrator.orchestrator.step.StepExecutor;
 import com.wuxiansheng.shieldarch.orchestrator.orchestrator.step.StepRequest;
@@ -32,6 +33,11 @@ public class InferenceExecutor implements StepExecutor {
     
     @Autowired(required = false)
     private LangChain4jLLMServiceClient langChain4jLLMServiceClient;
+    
+    // 保持向后兼容的接口定义
+    @Deprecated
+    public interface LLMServiceClient extends com.wuxiansheng.shieldarch.orchestrator.orchestrator.LLMServiceClient {
+    }
 
     @Override
     public String getName() {
@@ -98,7 +104,7 @@ public class InferenceExecutor implements StepExecutor {
         if (request.getPrompt() != null && !request.getPrompt().isEmpty()) {
             try {
                 // 优先使用 LangChain4j 客户端
-                InferenceExecutor.LLMServiceClient client = langChain4jLLMServiceClient != null 
+                LLMServiceClient client = langChain4jLLMServiceClient != null 
                     ? langChain4jLLMServiceClient : llmServiceClient;
                 
                 if (client != null) {
@@ -130,13 +136,6 @@ public class InferenceExecutor implements StepExecutor {
         context.setOcrTextByImage(ocrTextByImage);
 
         return CompletableFuture.completedFuture(result);
-    }
-
-    /**
-     * LLM服务客户端接口（占位，后续实现）
-     */
-    public interface LLMServiceClient {
-        String infer(String prompt, String imageUrl, String ocrText) throws Exception;
     }
 }
 

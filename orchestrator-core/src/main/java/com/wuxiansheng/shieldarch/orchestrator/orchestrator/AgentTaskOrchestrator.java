@@ -1,9 +1,14 @@
 package com.wuxiansheng.shieldarch.orchestrator.orchestrator;
 
+import com.wuxiansheng.shieldarch.governance.handler.SelfCorrectionHandler;
+import com.wuxiansheng.shieldarch.governance.validator.DualCheckValidator;
 import com.wuxiansheng.shieldarch.orchestrator.monitor.MetricsClientAdapter;
+import com.wuxiansheng.shieldarch.orchestrator.orchestrator.TaskStateMachine;
+import com.wuxiansheng.shieldarch.orchestrator.orchestrator.TaskStateStore;
 import com.wuxiansheng.shieldarch.orchestrator.orchestrator.step.StepExecutor;
 import com.wuxiansheng.shieldarch.orchestrator.orchestrator.step.StepRequest;
 import com.wuxiansheng.shieldarch.orchestrator.orchestrator.step.StepResult;
+import com.wuxiansheng.shieldarch.orchestrator.service.ResultStorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -13,7 +18,6 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
-import java.util.stream.Collectors;
 
 /**
  * 智能体任务编排器
@@ -34,6 +38,15 @@ public class AgentTaskOrchestrator {
 
     @Autowired
     private List<StepExecutor> stepExecutors;
+    
+    @Autowired(required = false)
+    private DualCheckValidator dualCheckValidator;
+    
+    @Autowired(required = false)
+    private SelfCorrectionHandler selfCorrectionHandler;
+    
+    @Autowired(required = false)
+    private ResultStorageService resultStorageService;
 
     /**
      * 全局背压控制信号量（限制发往下游推理服务的并发数）
@@ -41,8 +54,9 @@ public class AgentTaskOrchestrator {
     private final Semaphore semaphore;
 
     /**
-     * 任务状态存储（Redis，后续实现）
+     * 任务状态存储（Redis）
      */
+    @Autowired(required = false)
     private TaskStateStore stateStore;
 
     /**
@@ -94,7 +108,12 @@ public class AgentTaskOrchestrator {
                     }
                     
                     // 执行步骤（受背压控制）
-                    executeStepWithBackpressure(stateMachine, executor, context);
+                    StepResult stepResult = executeStepWithBackpressure(stateMachine, executor, context);
+                    
+                    // 如果是推理步骤，执行质量治理（校验 + 自愈）
+                    if ("Inference".equals(stepName) && stepResult != null && stepResult.getContent() != null) {
+                        performQualityGovernance(stateMachine, context, stepResult, executor);
+                    }
                     
                     // 标记步骤已执行
                     stateMachine.markStepExecuted(stepName);
@@ -107,7 +126,12 @@ public class AgentTaskOrchestrator {
                 stateMachine.markCompleted();
                 saveTaskState(stateMachine);
                 
-                // 5. 上报指标
+                // 5. 保存结果到持久化存储
+                if (resultStorageService != null) {
+                    resultStorageService.saveResult(stateMachine, context);
+                }
+                
+                // 6. 上报指标
                 Duration duration = Duration.between(startTime, Instant.now());
                 reportTaskCompletion(taskId, duration, true);
                 
@@ -134,8 +158,10 @@ public class AgentTaskOrchestrator {
 
     /**
      * 执行步骤（受背压控制）
+     * 
+     * @return 步骤执行结果
      */
-    private void executeStepWithBackpressure(TaskStateMachine stateMachine, 
+    private StepResult executeStepWithBackpressure(TaskStateMachine stateMachine, 
                                              StepExecutor executor, 
                                              TaskContext context) throws Exception {
         String stepName = executor.getName();
@@ -172,6 +198,8 @@ public class AgentTaskOrchestrator {
                 log.info("步骤执行完成: taskId={}, step={}, duration={}ms", 
                     taskId, stepName, stepDuration.toMillis());
                 
+                return result;
+                
             } finally {
                 // 释放信号量
                 semaphore.release();
@@ -180,6 +208,88 @@ public class AgentTaskOrchestrator {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new Exception("步骤执行被中断: " + stepName, e);
+        }
+    }
+    
+    /**
+     * 执行质量治理（校验 + 自愈）
+     */
+    private void performQualityGovernance(
+            TaskStateMachine stateMachine,
+            TaskContext context,
+            StepResult stepResult,
+            StepExecutor executor) {
+        
+        if (dualCheckValidator == null) {
+            log.debug("DualCheckValidator未配置，跳过质量治理");
+            return;
+        }
+        
+        String taskId = stateMachine.getTaskId();
+        String content = stepResult.getContent();
+        
+        log.info("开始质量治理: taskId={}", taskId);
+        
+        try {
+            // 1. 执行双路校验
+            DualCheckValidator.ValidationResult validationResult = 
+                dualCheckValidator.validate(context, content);
+            
+            if (validationResult.isValid()) {
+                log.info("质量校验通过: taskId={}", taskId);
+                return;
+            }
+            
+            log.warn("质量校验失败: taskId={}, errorCount={}", 
+                taskId, validationResult.getErrors().size());
+            
+            // 2. 如果校验失败，执行自愈重试
+            if (selfCorrectionHandler != null) {
+                log.info("开始自愈重试: taskId={}", taskId);
+                
+                // 获取原始Prompt和图片信息
+                String originalPrompt = context.getString("originalPrompt");
+                if (originalPrompt == null || originalPrompt.isEmpty()) {
+                    originalPrompt = "请根据图片和OCR文本进行推理";
+                }
+                
+                String imageUrl = context.getImagePaths() != null && !context.getImagePaths().isEmpty()
+                    ? context.getImagePaths().get(0) : null;
+                String ocrText = context.getOcrTextByImage() != null && imageUrl != null
+                    ? context.getOcrTextByImage().getOrDefault(imageUrl, "") : "";
+                
+                // 执行自愈重试
+                SelfCorrectionHandler.CorrectionResult correctionResult = 
+                    selfCorrectionHandler.correctAndRetry(
+                        context, originalPrompt, content, 
+                        validationResult.getErrors(), imageUrl, ocrText);
+                
+                if (correctionResult.isSuccess()) {
+                    log.info("自愈重试成功: taskId={}, retryCount={}", 
+                        taskId, correctionResult.getRetryCount());
+                    
+                    // 更新结果内容
+                    stepResult.setContent(correctionResult.getCorrectedContent());
+                    context.set("llmContent", correctionResult.getCorrectedContent());
+                    
+                    // 上报指标
+                    if (metricsClient != null) {
+                        Map<String, String> tags = new HashMap<>();
+                        tags.put("task_id", taskId);
+                        tags.put("retry_count", String.valueOf(correctionResult.getRetryCount()));
+                        metricsClient.incrementCounter("step_retry_count", tags);
+                    }
+                } else {
+                    log.warn("自愈重试失败: taskId={}, retryCount={}", 
+                        taskId, correctionResult.getRetryCount());
+                }
+            } else {
+                log.warn("SelfCorrectionHandler未配置，无法执行自愈重试");
+            }
+            
+        } catch (Exception e) {
+            log.error("质量治理执行失败: taskId={}, error={}", taskId, e.getMessage(), e);
+            // 不抛出异常，允许任务继续执行
         }
     }
 
@@ -268,7 +378,7 @@ public class AgentTaskOrchestrator {
             tags.put("task_id", taskId);
             tags.put("status", success ? "success" : "failed");
             
-            metricsClient.recordTimer("task_completion_time", duration.toMillis(), tags);
+            metricsClient.timing("task_completion_time", duration.toMillis(), tags);
             metricsClient.incrementCounter("task_status_total", tags);
         }
     }
@@ -283,17 +393,10 @@ public class AgentTaskOrchestrator {
             tags.put("step", stepName);
             tags.put("status", success ? "success" : "failed");
             
-            metricsClient.recordTimer("step_execution_time", duration.toMillis(), tags);
+            metricsClient.timing("step_execution_time", duration.toMillis(), tags);
             metricsClient.incrementCounter("step_execution_total", tags);
         }
     }
 
-    /**
-     * 任务状态存储接口（后续实现Redis版本）
-     */
-    public interface TaskStateStore {
-        void save(TaskStateMachine stateMachine);
-        TaskStateMachine load(String taskId);
-    }
 }
 

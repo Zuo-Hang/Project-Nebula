@@ -1,5 +1,6 @@
 package com.wuxiansheng.shieldarch.orchestrator.monitor;
 
+import com.wuxiansheng.shieldarch.orchestrator.monitor.MetricsClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -13,7 +14,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class MetricsClientAdapter {
+public class MetricsClientAdapter implements MetricsClient {
 
     @Autowired(required = false)
     private PrometheusMetricsClient prometheusMetricsClient;
