@@ -1,9 +1,0 @@
-# 忽略配置文件（可能包含敏感信息）
-*.properties
-*.yaml
-*.yml
-
-# 但保留示例文件
-!example.properties
-!example.yaml
-
