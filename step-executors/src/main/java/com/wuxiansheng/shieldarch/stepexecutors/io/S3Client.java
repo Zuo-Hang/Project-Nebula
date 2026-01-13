@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -36,6 +37,19 @@ public class S3Client {
      */
     @Autowired(required = false)
     private S3RuntimeConfig runtimeConfig;
+    
+    /**
+     * 指标客户端（可选，用于监控）
+     * 通过接口注入避免循环依赖
+     */
+    public interface MetricsClient {
+        void timing(String metric, long durationMs, Map<String, String> tags);
+        void incrementCounter(String metric, Map<String, String> tags);
+        void recordGauge(String metric, long value, Map<String, String> tags);
+    }
+    
+    @Autowired(required = false)
+    private MetricsClient metricsClient;
     
     /**
      * 初始化S3客户端
@@ -316,17 +330,23 @@ public class S3Client {
      * 上传单个文件
      */
     public void uploadFile(String bucketName, String localPath, String objectKey) throws Exception {
+        Instant startTime = Instant.now();
+        File file = new File(localPath);
+        long fileSize = file.exists() ? file.length() : 0;
+        
         MinioClient client = getClient(bucketName);
         if (client == null) {
+            reportUploadMetrics(bucketName, objectKey, startTime, fileSize, "failed", "client_not_configured");
             throw new Exception(String.format("S3 client not configured for bucket=%s", bucketName));
         }
         
         if (runtimeConfig == null) {
+            reportUploadMetrics(bucketName, objectKey, startTime, fileSize, "failed", "config_not_initialized");
             throw new Exception("S3 客户端未初始化（配置错误）");
         }
         
-        File file = new File(localPath);
         if (!file.exists()) {
+            reportUploadMetrics(bucketName, objectKey, startTime, fileSize, "failed", "file_not_exists");
             throw new Exception(String.format("本地文件不存在: %s", localPath));
         }
         
@@ -337,6 +357,7 @@ public class S3Client {
         String contentType = runtimeConfig.getUploadContentType();
         
         if (contentType == null || contentType.trim().isEmpty()) {
+            reportUploadMetrics(bucketName, objectKey, startTime, fileSize, "failed", "content_type_empty");
             throw new Exception("S3 配置 UploadContentType 不能为空");
         }
         
@@ -357,6 +378,9 @@ public class S3Client {
                 if (attempt > 0) {
                     log.info("上传重试成功: {} (第{}次重试)", file.getName(), attempt);
                 }
+                
+                // 上报成功指标
+                reportUploadMetrics(bucketName, objectKey, startTime, fileSize, "success", null, attempt);
                 return;
                 
             } catch (Exception e) {
@@ -375,7 +399,77 @@ public class S3Client {
             }
         }
         
+        // 上报失败指标
+        reportUploadMetrics(bucketName, objectKey, startTime, fileSize, "failed", 
+            lastErr != null ? lastErr.getClass().getSimpleName() : "unknown_error", maxRetries);
+        
         throw new Exception(String.format("上传失败，已重试%d次: %s", maxRetries, lastErr != null ? lastErr.getMessage() : "未知错误"));
+    }
+    
+    /**
+     * 上报S3上传指标
+     */
+    private void reportUploadMetrics(String bucketName, String objectKey, Instant startTime, 
+                                     long fileSize, String status, String errorType, int retryCount) {
+        if (metricsClient == null) {
+            return;
+        }
+        
+        try {
+            long duration = java.time.Duration.between(startTime, Instant.now()).toMillis();
+            
+            Map<String, String> tags = new HashMap<>();
+            tags.put("bucket", bucketName);
+            tags.put("status", status);
+            
+            if (errorType != null) {
+                tags.put("error_type", errorType);
+            }
+            
+            if (retryCount > 0) {
+                tags.put("retry_count", String.valueOf(retryCount));
+            }
+            
+            // 上报耗时
+            metricsClient.timing("s3_upload_duration", duration, tags);
+            
+            // 上报计数
+            metricsClient.incrementCounter("s3_upload_total", tags);
+            
+            // 上报文件大小
+            if (fileSize > 0) {
+                tags.put("file_size_range", getFileSizeRange(fileSize));
+                metricsClient.recordGauge("s3_upload_file_size", fileSize, tags);
+            }
+            
+        } catch (Exception e) {
+            log.warn("上报S3上传指标失败", e);
+        }
+    }
+    
+    /**
+     * 上报S3上传指标（重载方法，无retryCount）
+     */
+    private void reportUploadMetrics(String bucketName, String objectKey, Instant startTime, 
+                                     long fileSize, String status, String errorType) {
+        reportUploadMetrics(bucketName, objectKey, startTime, fileSize, status, errorType, 0);
+    }
+    
+    /**
+     * 获取文件大小范围标签
+     */
+    private String getFileSizeRange(long fileSize) {
+        if (fileSize < 1024 * 1024) { // < 1MB
+            return "0-1MB";
+        } else if (fileSize < 10 * 1024 * 1024) { // 1MB - 10MB
+            return "1-10MB";
+        } else if (fileSize < 100 * 1024 * 1024) { // 10MB - 100MB
+            return "10-100MB";
+        } else if (fileSize < 500 * 1024 * 1024) { // 100MB - 500MB
+            return "100-500MB";
+        } else { // >= 500MB
+            return "500MB+";
+        }
     }
     
     /**

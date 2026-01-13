@@ -113,6 +113,13 @@
             <artifactId>commons-lang3</artifactId>
         </dependency>
 
+        <!-- Handlebars Template Engine -->
+        <dependency>
+            <groupId>com.github.jknack</groupId>
+            <artifactId>handlebars</artifactId>
+            <version>4.3.1</version>
+        </dependency>
+
         <!-- Validation -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -2,6 +2,7 @@ package com.wuxiansheng.shieldarch.governance.handler;
 
 import com.wuxiansheng.shieldarch.orchestrator.orchestrator.LLMServiceClient;
 import com.wuxiansheng.shieldarch.orchestrator.orchestrator.TaskContext;
+import com.wuxiansheng.shieldarch.orchestrator.orchestrator.prompt.PromptManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +23,9 @@ public class SelfCorrectionHandler {
     
     @Autowired(required = false)
     private LLMServiceClient llmServiceClient;
+    
+    @Autowired(required = false)
+    private PromptManager promptManager;
     
     /**
      * 最大重试次数
@@ -85,15 +89,7 @@ public class SelfCorrectionHandler {
     }
     
     /**
-     * 执行自愈重试
-     * 
-     * @param context 任务上下文
-     * @param originalPrompt 原始Prompt
-     * @param originalContent 原始推理结果
-     * @param validationErrors 校验错误列表
-     * @param imageUrl 图片URL（可选）
-     * @param ocrText OCR文本（可选）
-     * @return 自愈结果
+     * 执行自愈重试（重载方法，保持向后兼容）
      */
     public CorrectionResult correctAndRetry(
             TaskContext context,
@@ -102,6 +98,29 @@ public class SelfCorrectionHandler {
             List<String> validationErrors,
             String imageUrl,
             String ocrText) {
+        return correctAndRetry(context, originalPrompt, originalContent, validationErrors, imageUrl, ocrText, null);
+    }
+    
+    /**
+     * 执行自愈重试
+     * 
+     * @param context 任务上下文
+     * @param originalPrompt 原始Prompt
+     * @param originalContent 原始推理结果
+     * @param validationErrors 校验错误列表
+     * @param imageUrl 图片URL（可选）
+     * @param ocrText OCR文本（可选）
+     * @param promptManager Prompt管理器（可选，用于构建反思Prompt）
+     * @return 自愈结果
+     */
+    public CorrectionResult correctAndRetry(
+            TaskContext context,
+            String originalPrompt,
+            String originalContent,
+            List<String> validationErrors,
+            String imageUrl,
+            String ocrText,
+            PromptManager promptManager) {
         
         CorrectionResult result = new CorrectionResult();
         result.setRetryCount(0);
@@ -123,10 +142,20 @@ public class SelfCorrectionHandler {
             
             try {
                 // 1. 根据错误信息生成改进的Prompt
-                String improvedPrompt = generateImprovedPrompt(
-                    currentPrompt, currentContent, validationErrors, attempt);
+                String improvedPrompt;
+                if (promptManager != null) {
+                    // 使用PromptManager构建反思Prompt
+                    String bizType = inferBizType(context);
+                    improvedPrompt = promptManager.buildReflectPrompt(
+                        bizType, currentPrompt, currentContent, validationErrors, attempt);
+                    log.info("自愈重试 [{}/{}]: 使用PromptManager生成反思Prompt", attempt, maxRetries);
+                } else {
+                    // 使用传统方式生成改进Prompt
+                    improvedPrompt = generateImprovedPrompt(
+                        currentPrompt, currentContent, validationErrors, attempt);
+                    log.info("自愈重试 [{}/{}]: 使用传统方式生成改进Prompt", attempt, maxRetries);
+                }
                 
-                log.info("自愈重试 [{}/{}}]: 生成改进Prompt", attempt, maxRetries);
                 result.addHistory(String.format("尝试 %d: 生成改进Prompt", attempt));
                 
                 // 2. 使用改进的Prompt重新推理
@@ -221,6 +250,34 @@ public class SelfCorrectionHandler {
         }
         improved.append("\n请仔细检查并修正上述问题。");
         return improved.toString();
+    }
+    
+    /**
+     * 推断业务类型（用于PromptManager）
+     */
+    private String inferBizType(TaskContext context) {
+        String taskType = context.getTaskType();
+        if (taskType != null && !taskType.isEmpty()) {
+            String bizType = taskType.toUpperCase();
+            if (bizType.contains("GAODE") || bizType.contains("高德")) {
+                return "GAODE";
+            } else if (bizType.contains("XIAOLA") || bizType.contains("小拉")) {
+                return "XIAOLA";
+            }
+            return bizType;
+        }
+        
+        String linkName = context.getLinkName();
+        if (linkName != null && !linkName.isEmpty()) {
+            String lowerLinkName = linkName.toLowerCase();
+            if (lowerLinkName.contains("gaode") || lowerLinkName.contains("高德")) {
+                return "GAODE";
+            } else if (lowerLinkName.contains("xiaola") || lowerLinkName.contains("小拉")) {
+                return "XIAOLA";
+            }
+        }
+        
+        return "DEFAULT";
     }
 }
 

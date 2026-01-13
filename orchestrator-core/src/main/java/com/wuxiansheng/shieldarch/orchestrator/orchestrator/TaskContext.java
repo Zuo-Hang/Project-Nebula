@@ -2,6 +2,7 @@ package com.wuxiansheng.shieldarch.orchestrator.orchestrator;
 
 import lombok.Data;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +74,11 @@ public class TaskContext {
      * 自定义数据存储
      */
     private Map<String, Object> customData = new HashMap<>();
+    
+    /**
+     * 推理步骤记录（用于Chain-of-Thought和ReAct）
+     */
+    private List<ReasoningStep> reasoningSteps = new ArrayList<>();
 
     /**
      * 获取自定义值
@@ -113,7 +119,67 @@ public class TaskContext {
         cloned.setS3UploadInfo(this.s3UploadInfo);
         cloned.setSubmitDate(this.submitDate);
         cloned.setCustomData(new HashMap<>(this.customData));
+        cloned.setReasoningSteps(this.reasoningSteps != null ? new ArrayList<>(this.reasoningSteps) : null);
         return cloned;
+    }
+    
+    /**
+     * 添加推理步骤
+     */
+    public void addReasoningStep(ReasoningStep step) {
+        if (reasoningSteps == null) {
+            reasoningSteps = new ArrayList<>();
+        }
+        reasoningSteps.add(step);
+    }
+    
+    /**
+     * 获取推理步骤
+     */
+    public List<ReasoningStep> getReasoningSteps() {
+        return reasoningSteps != null ? reasoningSteps : new ArrayList<>();
+    }
+    
+    /**
+     * 推理步骤
+     */
+    @lombok.Data
+    @lombok.Builder
+    public static class ReasoningStep {
+        /**
+         * 步骤序号
+         */
+        private int stepNumber;
+        
+        /**
+         * 步骤类型（THOUGHT, ACTION, OBSERVATION, CONCLUSION）
+         */
+        private StepType type;
+        
+        /**
+         * 步骤内容
+         */
+        private String content;
+        
+        /**
+         * 步骤时间戳
+         */
+        private long timestamp;
+        
+        /**
+         * 步骤元数据
+         */
+        private Map<String, Object> metadata;
+        
+        /**
+         * 步骤类型枚举
+         */
+        public enum StepType {
+            THOUGHT,      // 思考
+            ACTION,       // 行动
+            OBSERVATION,  // 观察
+            CONCLUSION    // 结论
+        }
     }
 }
 

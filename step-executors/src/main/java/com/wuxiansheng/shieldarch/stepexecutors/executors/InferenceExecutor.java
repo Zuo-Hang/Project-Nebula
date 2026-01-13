@@ -103,6 +103,9 @@ public class InferenceExecutor implements StepExecutor {
         String content = null;
         if (request.getPrompt() != null && !request.getPrompt().isEmpty()) {
             try {
+                // 保存原始prompt到上下文（用于后续自愈重试）
+                context.set("originalPrompt", request.getPrompt());
+                
                 // 优先使用 LangChain4j 客户端
                 LLMServiceClient client = langChain4jLLMServiceClient != null 
                     ? langChain4jLLMServiceClient : llmServiceClient;

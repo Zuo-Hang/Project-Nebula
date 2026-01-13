@@ -5,6 +5,8 @@ import com.wuxiansheng.shieldarch.governance.validator.DualCheckValidator;
 import com.wuxiansheng.shieldarch.orchestrator.monitor.MetricsClientAdapter;
 import com.wuxiansheng.shieldarch.orchestrator.orchestrator.TaskStateMachine;
 import com.wuxiansheng.shieldarch.orchestrator.orchestrator.TaskStateStore;
+import com.wuxiansheng.shieldarch.orchestrator.orchestrator.prompt.PromptManager;
+import com.wuxiansheng.shieldarch.orchestrator.orchestrator.prompt.PromptCanaryManager;
 import com.wuxiansheng.shieldarch.orchestrator.orchestrator.step.StepExecutor;
 import com.wuxiansheng.shieldarch.orchestrator.orchestrator.step.StepRequest;
 import com.wuxiansheng.shieldarch.orchestrator.orchestrator.step.StepResult;
@@ -47,6 +49,12 @@ public class AgentTaskOrchestrator {
     
     @Autowired(required = false)
     private ResultStorageService resultStorageService;
+    
+    @Autowired(required = false)
+    private PromptManager promptManager;
+    
+    @Autowired(required = false)
+    private PromptCanaryManager promptCanaryManager;
 
     /**
      * 全局背压控制信号量（限制发往下游推理服务的并发数）
@@ -250,7 +258,8 @@ public class AgentTaskOrchestrator {
                 // 获取原始Prompt和图片信息
                 String originalPrompt = context.getString("originalPrompt");
                 if (originalPrompt == null || originalPrompt.isEmpty()) {
-                    originalPrompt = "请根据图片和OCR文本进行推理";
+                    // 如果没有存储原始prompt，重新构建（用于记录）
+                    originalPrompt = buildInferencePrompt(context);
                 }
                 
                 String imageUrl = context.getImagePaths() != null && !context.getImagePaths().isEmpty()
@@ -258,11 +267,11 @@ public class AgentTaskOrchestrator {
                 String ocrText = context.getOcrTextByImage() != null && imageUrl != null
                     ? context.getOcrTextByImage().getOrDefault(imageUrl, "") : "";
                 
-                // 执行自愈重试
+                // 执行自愈重试（使用PromptManager构建反思Prompt）
                 SelfCorrectionHandler.CorrectionResult correctionResult = 
                     selfCorrectionHandler.correctAndRetry(
                         context, originalPrompt, content, 
-                        validationResult.getErrors(), imageUrl, ocrText);
+                        validationResult.getErrors(), imageUrl, ocrText, promptManager);
                 
                 if (correctionResult.isSuccess()) {
                     log.info("自愈重试成功: taskId={}, retryCount={}", 
@@ -323,13 +332,148 @@ public class AgentTaskOrchestrator {
             case "Inference":
                 request.setImageUrl(context.getImagePaths() != null && !context.getImagePaths().isEmpty() 
                     ? context.getImagePaths().get(0) : null);
-                // prompt可以从配置或上下文中获取
+                
+                // 使用PromptManager构建prompt（支持灰度版本）
+                String prompt = buildInferencePrompt(context);
+                request.setPrompt(prompt);
+                
+                // 保存原始prompt到上下文（用于后续自愈重试）
+                context.set("originalPrompt", prompt);
                 break;
         }
         
         return request;
     }
 
+    /**
+     * 构建推理Prompt
+     */
+    private String buildInferencePrompt(TaskContext context) {
+        // 1. 优先从上下文获取自定义prompt
+        String customPrompt = context.getString("prompt");
+        if (customPrompt != null && !customPrompt.isEmpty()) {
+            log.debug("使用上下文中的自定义prompt: taskId={}", context.getTaskId());
+            return customPrompt;
+        }
+        
+        // 2. 使用PromptManager构建prompt（支持灰度版本）
+        if (promptManager != null) {
+            try {
+                // 获取业务类型（从taskType或linkName推断）
+                String bizType = inferBizType(context);
+                
+                // 构建上下文变量
+                Map<String, Object> promptContext = buildPromptContext(context);
+                
+                // 构建组合Prompt（System + Business），支持灰度版本
+                String prompt;
+                if (promptCanaryManager != null) {
+                    // 使用灰度版本（如果启用）
+                    prompt = promptManager.buildPromptWithCanary(
+                        bizType, 
+                        PromptManager.PromptStage.EXTRACTION, 
+                        promptContext, 
+                        context.getTaskId()
+                    );
+                } else {
+                    // 使用稳定版本
+                    prompt = promptManager.buildCombinedPrompt(bizType, promptContext);
+                }
+                
+                log.debug("使用PromptManager构建prompt: taskId={}, bizType={}, promptLength={}", 
+                    context.getTaskId(), bizType, prompt.length());
+                
+                return prompt;
+                
+            } catch (Exception e) {
+                log.warn("PromptManager构建prompt失败，使用默认prompt: taskId={}, error={}", 
+                    context.getTaskId(), e.getMessage());
+            }
+        }
+        
+        // 3. 使用默认prompt
+        String defaultPrompt = "请根据图片和OCR文本进行推理";
+        log.debug("使用默认prompt: taskId={}", context.getTaskId());
+        return defaultPrompt;
+    }
+    
+    /**
+     * 推断业务类型
+     */
+    private String inferBizType(TaskContext context) {
+        // 1. 从taskType推断
+        String taskType = context.getTaskType();
+        if (taskType != null && !taskType.isEmpty()) {
+            // 转换为业务类型（如：gaode_video -> GAODE）
+            String bizType = taskType.toUpperCase();
+            if (bizType.contains("GAODE") || bizType.contains("高德")) {
+                return "GAODE";
+            } else if (bizType.contains("XIAOLA") || bizType.contains("小拉")) {
+                return "XIAOLA";
+            }
+            return bizType;
+        }
+        
+        // 2. 从linkName推断
+        String linkName = context.getLinkName();
+        if (linkName != null && !linkName.isEmpty()) {
+            String lowerLinkName = linkName.toLowerCase();
+            if (lowerLinkName.contains("gaode") || lowerLinkName.contains("高德")) {
+                return "GAODE";
+            } else if (lowerLinkName.contains("xiaola") || lowerLinkName.contains("小拉")) {
+                return "XIAOLA";
+            }
+        }
+        
+        // 3. 默认业务类型
+        return "DEFAULT";
+    }
+    
+    /**
+     * 构建Prompt上下文变量
+     */
+    private Map<String, Object> buildPromptContext(TaskContext context) {
+        Map<String, Object> promptContext = new HashMap<>();
+        
+        // 基础信息
+        promptContext.put("taskId", context.getTaskId());
+        promptContext.put("taskType", context.getTaskType());
+        promptContext.put("linkName", context.getLinkName());
+        promptContext.put("submitDate", context.getSubmitDate());
+        
+        // OCR文本（如果有）
+        if (context.getOcrTextByImage() != null && !context.getOcrTextByImage().isEmpty()) {
+            // 使用第一张图片的OCR文本
+            String firstImageUrl = context.getImagePaths() != null && !context.getImagePaths().isEmpty() 
+                ? context.getImagePaths().get(0) : null;
+            if (firstImageUrl != null) {
+                String ocrText = context.getOcrTextByImage().getOrDefault(firstImageUrl, "");
+                promptContext.put("ocrData", ocrText);
+            }
+        }
+        
+        // 目标字段（可以从配置或上下文获取）
+        String targetField = context.getString("targetField");
+        if (targetField == null || targetField.isEmpty()) {
+            targetField = "关键信息"; // 默认值
+        }
+        promptContext.put("targetField", targetField);
+        
+        // 角色（可以从配置获取）
+        String role = context.getString("role");
+        if (role == null || role.isEmpty()) {
+            role = "数据分析专家"; // 默认值
+        }
+        promptContext.put("role", role);
+        
+        // 自定义数据
+        if (context.getCustomData() != null) {
+            promptContext.putAll(context.getCustomData());
+        }
+        
+        return promptContext;
+    }
+    
     /**
      * 从结果更新上下文
      */

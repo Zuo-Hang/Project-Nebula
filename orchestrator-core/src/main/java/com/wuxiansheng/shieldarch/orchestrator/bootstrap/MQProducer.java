@@ -79,8 +79,11 @@ public class MQProducer {
      * @return 是否发送成功
      */
     public boolean send(String topic, String msg) {
+        long startTime = System.currentTimeMillis();
+        
         if (producer == null) {
             log.error("MQ Producer未初始化，请先调用initProducer()");
+            reportSendMetrics(topic, startTime, false, "producer_not_initialized");
             return false;
         }
         
@@ -89,23 +92,52 @@ public class MQProducer {
             SendResult sendResult = producer.send(message);
             
             if (sendResult.getSendStatus() == SendStatus.SEND_OK) {
-                // 上报指标
-                if (metricsClient != null) {
-                    Map<String, String> tags = new HashMap<>();
-                    tags.put("topic", topic);
-                    metricsClient.incrementCounter("mq_producer_sent", tags);
-                }
-                
+                // 上报成功指标
+                reportSendMetrics(topic, startTime, true, null);
                 log.debug("消息发送成功: topic={}, msgId={}", topic, sendResult.getMsgId());
                 return true;
             } else {
+                // 上报失败指标
+                reportSendMetrics(topic, startTime, false, sendResult.getSendStatus().name());
                 log.error("消息发送失败: topic={}, status={}", topic, sendResult.getSendStatus());
                 return false;
             }
             
         } catch (Exception e) {
+            // 上报异常指标
+            reportSendMetrics(topic, startTime, false, e.getClass().getSimpleName());
             log.error("MQ发送异常: topic={}, error={}", topic, e.getMessage(), e);
             return false;
+        }
+    }
+    
+    /**
+     * 上报MQ发送指标
+     */
+    private void reportSendMetrics(String topic, long startTime, boolean success, String errorType) {
+        if (metricsClient == null) {
+            return;
+        }
+        
+        try {
+            long duration = System.currentTimeMillis() - startTime;
+            
+            Map<String, String> tags = new HashMap<>();
+            tags.put("topic", topic);
+            tags.put("status", success ? "success" : "failed");
+            
+            if (errorType != null) {
+                tags.put("error_type", errorType);
+            }
+            
+            // 上报耗时
+            metricsClient.timing("mq_producer_send_duration", duration, tags);
+            
+            // 上报计数
+            metricsClient.incrementCounter("mq_producer_send_total", tags);
+            
+        } catch (Exception e) {
+            log.warn("上报MQ发送指标失败", e);
         }
     }
     

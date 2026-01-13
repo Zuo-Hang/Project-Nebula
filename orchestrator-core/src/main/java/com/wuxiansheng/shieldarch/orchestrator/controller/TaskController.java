@@ -8,6 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Map;
 
 /**
  * 任务管理REST API
@@ -85,6 +88,60 @@ public class TaskController {
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             log.error("取消任务失败: taskId={}", taskId, e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * 上传视频文件
+     * 
+     * 流程：
+     * 1. 接收前端上传的文件
+     * 2. 调用Service层处理：上传到S3 + 发送MQ消息
+     * 3. 返回任务状态
+     * 
+     * @param file 视频文件
+     * @param linkName 链接名称（可选）
+     * @param submitDate 提交日期（可选）
+     * @return 任务状态响应
+     */
+    @PostMapping("/upload")
+    public ResponseEntity<TaskStatusResponse> uploadVideo(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) String linkName,
+            @RequestParam(required = false) String submitDate,
+            @RequestParam(required = false) Map<String, String> customData) {
+        
+        log.info("收到视频上传请求: filename={}, size={}, linkName={}, submitDate={}", 
+            file.getOriginalFilename(), file.getSize(), linkName, submitDate);
+        
+        try {
+            // 验证文件
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            
+            // 验证文件类型（可选）
+            String contentType = file.getContentType();
+            if (contentType != null && !contentType.startsWith("video/")) {
+                log.warn("文件类型不正确: contentType={}", contentType);
+                // 这里可以选择是否严格验证，暂时允许所有类型
+            }
+            
+            // 调用Service层处理上传和MQ发送
+            TaskStatusResponse response = taskService.uploadVideo(file, linkName, submitDate, customData);
+            
+            log.info("视频上传成功: taskId={}, videoKey={}", response.getTaskId(), response.getVideoKey());
+            return ResponseEntity.ok(response);
+            
+        } catch (IllegalArgumentException e) {
+            log.error("视频上传参数错误: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (IllegalStateException e) {
+            log.error("视频上传服务未配置: {}", e.getMessage());
+            return ResponseEntity.status(503).build(); // Service Unavailable
+        } catch (Exception e) {
+            log.error("视频上传失败", e);
             return ResponseEntity.internalServerError().build();
         }
     }

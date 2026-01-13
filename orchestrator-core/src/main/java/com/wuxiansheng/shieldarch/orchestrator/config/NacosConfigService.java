@@ -478,5 +478,62 @@ public class NacosConfigService implements AppConfigService {
             log.error("添加 Nacos 配置监听器失败: dataId={}, error={}", dataId, e.getMessage(), e);
         }
     }
+    
+    /**
+     * 获取Nacos ConfigService API（用于写配置）
+     * 
+     * 注意：此方法用于AutoPromptOptimizer等需要写配置的场景
+     */
+    public com.alibaba.nacos.api.config.ConfigService getConfigServiceApi() {
+        return nacosConfigServiceApi;
+    }
+    
+    /**
+     * 发布配置到Nacos
+     * 
+     * @param dataId 配置ID
+     * @param group 配置组
+     * @param content 配置内容
+     * @param configType 配置类型
+     * @return 是否发布成功
+     */
+    public boolean publishConfig(String dataId, String group, String content, String configType) {
+        if (nacosConfigServiceApi == null || !initialized) {
+            log.warn("Nacos ConfigService未初始化，无法发布配置: dataId={}", dataId);
+            return false;
+        }
+        
+        try {
+            nacosConfigServiceApi.publishConfig(dataId, group, content, configType);
+            log.info("配置发布成功: dataId={}, group={}", dataId, group);
+            return true;
+        } catch (NacosException e) {
+            log.error("配置发布失败: dataId={}, group={}, error={}", dataId, group, e.getMessage(), e);
+            return false;
+        }
+    }
+    
+    /**
+     * 删除配置
+     * 
+     * @param dataId 配置ID
+     * @param group 配置组
+     * @return 是否删除成功
+     */
+    public boolean removeConfig(String dataId, String group) {
+        if (nacosConfigServiceApi == null || !initialized) {
+            log.warn("Nacos ConfigService未初始化，无法删除配置: dataId={}", dataId);
+            return false;
+        }
+        
+        try {
+            nacosConfigServiceApi.removeConfig(dataId, group);
+            log.info("配置删除成功: dataId={}, group={}", dataId, group);
+            return true;
+        } catch (NacosException e) {
+            log.error("配置删除失败: dataId={}, group={}, error={}", dataId, group, e.getMessage(), e);
+            return false;
+        }
+    }
 }
 

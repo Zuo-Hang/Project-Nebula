@@ -53,5 +53,10 @@ public class TaskStatusResponse {
      * 任务结果
      */
     private Object result;
+    
+    /**
+     * 视频Key（S3路径）
+     */
+    private String videoKey;
 }
 
