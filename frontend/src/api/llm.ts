@@ -37,6 +37,22 @@ export interface ServiceInfo {
   }
 }
 
+export interface QualityInfo {
+  width: number
+  height: number
+  resolution: string
+  quality: string
+}
+
+export interface QualityResponse {
+  success: boolean
+  width?: number
+  height?: number
+  resolution?: string
+  quality?: string
+  error?: string
+}
+
 /**
  * 获取服务信息
  */
@@ -64,6 +80,14 @@ export const infer = async (request: InferenceRequest): Promise<InferenceRespons
     },
     body: JSON.stringify(request),
   })
+  return response.json()
+}
+
+/**
+ * 获取文件清晰度信息
+ */
+export const getFileQuality = async (fileUrl: string): Promise<QualityResponse> => {
+  const response = await fetch(`${LLM_API_BASE_URL}/quality?fileUrl=${encodeURIComponent(fileUrl)}`)
   return response.json()
 }
 

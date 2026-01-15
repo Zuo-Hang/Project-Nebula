@@ -31,6 +31,9 @@ public class LocalLLMController {
     @Autowired
     private LocalLLMService localLLMService;
 
+    @Autowired(required = false)
+    private com.wuxiansheng.shieldarch.llm.service.VideoQualityService videoQualityService;
+
     @Value("${local-llm.upload.directory:./uploads}")
     private String uploadDirectory;
 
@@ -113,6 +116,46 @@ public class LocalLLMController {
     }
 
     /**
+     * 获取文件清晰度信息
+     * 
+     * @param fileUrl 文件路径（支持 file:// 协议或本地路径）
+     * @return 清晰度信息
+     */
+    @GetMapping("/quality")
+    public ResponseEntity<Map<String, Object>> getFileQuality(
+            @RequestParam("fileUrl") String fileUrl) {
+        log.info("收到清晰度查询请求: fileUrl={}", fileUrl);
+        
+        if (videoQualityService == null) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", "清晰度判断服务未启用，请确保已安装 ffmpeg");
+            return ResponseEntity.badRequest().body(response);
+        }
+        
+        try {
+            com.wuxiansheng.shieldarch.llm.service.VideoQualityService.VideoInfo info = 
+                videoQualityService.getVideoInfo(fileUrl);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("width", info.getWidth());
+            response.put("height", info.getHeight());
+            response.put("resolution", info.getResolution());
+            response.put("quality", info.getQuality());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("获取文件清晰度失败", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
      * 上传图片文件
      * 
      * @param file 图片文件
@@ -185,6 +228,23 @@ public class LocalLLMController {
             response.put("localPath", localFilePath);
             response.put("originalName", originalFilename);
             response.put("size", file.getSize());
+            
+            // 7. 尝试获取文件清晰度信息（如果支持）
+            if (videoQualityService != null && videoQualityService.isFfprobeAvailable()) {
+                try {
+                    com.wuxiansheng.shieldarch.llm.service.VideoQualityService.VideoInfo qualityInfo = 
+                        videoQualityService.getVideoInfo(fileUrl);
+                    response.put("quality", qualityInfo.getQuality());
+                    response.put("width", qualityInfo.getWidth());
+                    response.put("height", qualityInfo.getHeight());
+                    response.put("resolution", qualityInfo.getResolution());
+                    log.info("文件清晰度信息: quality={}, resolution={}", 
+                        qualityInfo.getQuality(), qualityInfo.getResolution());
+                } catch (Exception e) {
+                    log.warn("获取文件清晰度失败，继续返回上传结果: {}", e.getMessage());
+                    // 清晰度获取失败不影响文件上传，继续返回上传结果
+                }
+            }
             
             return ResponseEntity.ok(response);
             

@@ -50,4 +50,9 @@ local-llm:
     base-url: http://localhost:8000
     model: qwen2.5-7b-instruct
     timeout: 60000
+  
+  # 视频/图片清晰度判断配置
+  video:
+    # ffprobe 路径（默认从 PATH 查找）
+    ffprobe-path: ${LOCAL_LLM_FFPROBE_PATH:ffprobe}
 

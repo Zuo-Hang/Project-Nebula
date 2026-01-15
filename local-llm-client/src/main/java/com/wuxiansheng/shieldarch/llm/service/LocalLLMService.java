@@ -11,6 +11,8 @@ import dev.langchain4j.model.output.Response;
 import dev.langchain4j.model.output.TokenUsage;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 本地大模型服务
@@ -44,10 +47,15 @@ public class LocalLLMService {
     private String defaultModelName;
 
     /**
-     * 可用模型列表
+     * 可用模型列表（从配置文件读取，作为默认值）
      */
     @Value("${local-llm.ollama.available-models:qwen2.5vl:latest,llama3:latest}")
-    private String[] availableModels;
+    private String[] defaultAvailableModels;
+
+    /**
+     * ObjectMapper 用于解析 JSON
+     */
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * 缓存的 ChatLanguageModel 实例（按模型名称缓存）
@@ -187,9 +195,41 @@ public class LocalLLMService {
 
     /**
      * 获取可用模型列表
+     * 优先从 Ollama 动态获取，如果失败则使用配置文件中的默认值
      */
     public List<String> getAvailableModels() {
-        return Arrays.asList(availableModels);
+        try {
+            // 尝试从 Ollama 动态获取模型列表
+            String url = normalizeBaseUrl(baseUrl) + "/api/tags";
+            RestTemplate restTemplate = new RestTemplate();
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode root = objectMapper.readTree(response.getBody());
+                JsonNode models = root.get("models");
+                
+                if (models != null && models.isArray()) {
+                    List<String> modelList = new ArrayList<>();
+                    for (JsonNode model : models) {
+                        JsonNode nameNode = model.get("name");
+                        if (nameNode != null && nameNode.isTextual()) {
+                            modelList.add(nameNode.asText());
+                        }
+                    }
+                    
+                    if (!modelList.isEmpty()) {
+                        log.info("从Ollama动态获取到 {} 个模型: {}", modelList.size(), modelList);
+                        return modelList;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("从Ollama获取模型列表失败，使用配置文件默认值: {}", e.getMessage());
+        }
+        
+        // 如果动态获取失败，使用配置文件中的默认值
+        log.debug("使用配置文件中的默认模型列表: {}", Arrays.toString(defaultAvailableModels));
+        return Arrays.asList(defaultAvailableModels);
     }
 
     /**

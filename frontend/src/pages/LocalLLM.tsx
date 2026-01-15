@@ -24,7 +24,7 @@ import {
   DeleteOutlined,
 } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
-import { infer, checkHealth, getServiceInfo, InferenceRequest } from '../api/llm'
+import { infer, checkHealth, getServiceInfo, getFileQuality, InferenceRequest, QualityInfo } from '../api/llm'
 import './LocalLLM.css'
 
 const { TextArea } = Input
@@ -34,6 +34,7 @@ const LocalLLM = () => {
   const [prompt, setPrompt] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [uploadedFile, setUploadedFile] = useState<UploadFile | null>(null)
+  const [qualityInfo, setQualityInfo] = useState<QualityInfo | null>(null) // 文件清晰度信息
   const [ocrResult, setOcrResult] = useState<string | null>(null) // OCR识别结果（后续通过OCR服务调用生成）
   const [selectedModel, setSelectedModel] = useState<string>('')
   const [availableModels, setAvailableModels] = useState<string[]>([])
@@ -151,6 +152,33 @@ const LocalLLM = () => {
           status: 'done',
           url: result.fileUrl,
         } as UploadFile)
+        
+        // 如果后端返回了清晰度信息，设置它
+        if (result.quality) {
+          setQualityInfo({
+            width: result.width,
+            height: result.height,
+            resolution: result.resolution,
+            quality: result.quality,
+          })
+        } else {
+          // 如果后端没有返回，尝试单独获取清晰度信息
+          try {
+            const qualityResponse = await getFileQuality(result.fileUrl)
+            if (qualityResponse.success && qualityResponse.quality) {
+              setQualityInfo({
+                width: qualityResponse.width!,
+                height: qualityResponse.height!,
+                resolution: qualityResponse.resolution!,
+                quality: qualityResponse.quality!,
+              })
+            }
+          } catch (err) {
+            // 清晰度获取失败不影响上传
+            console.debug('获取清晰度信息失败:', err)
+          }
+        }
+        
         message.success('图片上传成功')
       } else {
         setError(result.error || '上传失败')
@@ -171,6 +199,7 @@ const LocalLLM = () => {
   const handleRemoveFile = () => {
     setImageUrl('')
     setUploadedFile(null)
+    setQualityInfo(null)
   }
 
   // 清空输入
@@ -178,6 +207,7 @@ const LocalLLM = () => {
     setPrompt('')
     setImageUrl('')
     setUploadedFile(null)
+    setQualityInfo(null)
     setOcrResult(null)
     setResult(null)
     setError(null)
@@ -292,19 +322,29 @@ const LocalLLM = () => {
                     />
                   )}
                   {uploadedFile && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        已上传: {uploadedFile.name}
-                      </Text>
-                      <Button
-                        type="link"
-                        size="small"
-                        icon={<DeleteOutlined />}
-                        onClick={handleRemoveFile}
-                        disabled={loading}
-                      >
-                        删除
-                      </Button>
+                    <div style={{ padding: '8px 0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          已上传: {uploadedFile.name}
+                        </Text>
+                        <Button
+                          type="link"
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={handleRemoveFile}
+                          disabled={loading}
+                        >
+                          删除
+                        </Button>
+                      </div>
+                      {qualityInfo && (
+                        <div style={{ padding: '4px 8px', background: '#f0f7ff', borderRadius: 4, fontSize: 12 }}>
+                          <Text type="secondary">
+                            清晰度: <Text strong style={{ color: '#1890ff' }}>{qualityInfo.quality}</Text>
+                            {' '} | 分辨率: {qualityInfo.resolution}
+                          </Text>
+                        </div>
+                      )}
                     </div>
                   )}
                   <Text type="secondary" style={{ fontSize: 12 }}>
