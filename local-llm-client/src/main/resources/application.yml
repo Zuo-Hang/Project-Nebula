@@ -21,7 +21,8 @@ local-llm:
     base-url: http://localhost:11434
     # 默认模型：qwen2.5vl:latest（支持多模态）或 llama3:latest（纯文本）
     model: qwen2.5vl:latest
-    timeout: 60000
+    # 调用 Ollama 的 HTTP 超时（毫秒）。多模态/大图推理较慢，建议 300000（5 分钟）以上
+    timeout: 300000
     # 可用模型列表
     available-models:
       - qwen2.5vl:latest

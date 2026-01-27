@@ -8,15 +8,17 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * 本地大模型控制器
@@ -80,13 +82,16 @@ public class LocalLLMController {
      */
     @PostMapping("/infer")
     public ResponseEntity<Map<String, Object>> infer(@RequestBody InferenceRequest request) {
-        log.info("收到推理请求: promptLength={}", 
-            request.getPrompt() != null ? request.getPrompt().length() : 0);
-        
+        log.info("收到推理请求: promptLength={}, imageCount={}",
+            request.getPrompt() != null ? request.getPrompt().length() : 0,
+            request.getImageUrls() != null ? request.getImageUrls().size() : (request.getImageUrl() != null ? 1 : 0));
+
+        List<String> imageUrls = buildImageUrls(request);
+
         try {
             LocalLLMService.InferenceResult result = localLLMService.infer(
                 request.getPrompt(),
-                request.getImageUrl(),
+                imageUrls,
                 request.getOcrText(),
                 request.getModel()
             );
@@ -106,13 +111,47 @@ public class LocalLLMController {
             
         } catch (Exception e) {
             log.error("推理失败", e);
-            
+            String userMessage = resolveInferErrorMessage(e);
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
-            response.put("error", e.getMessage());
-            
+            response.put("error", userMessage);
             return ResponseEntity.internalServerError().body(response);
         }
+    }
+
+    /**
+     * 根据异常类型返回对用户友好的错误说明（Ollama 未启动 / 超时 / 其他）
+     */
+    private String resolveInferErrorMessage(Throwable e) {
+        Throwable t = e;
+        while (t != null) {
+            String msg = t.getMessage() != null ? t.getMessage() : "";
+            if (msg.contains("Connection refused") || msg.contains("Failed to connect")) {
+                return "Ollama 未启动或不可达，请确认本机已启动 Ollama（如执行 ollama serve）并监听 11434 端口。";
+            }
+            if (msg.contains("timeout") || t instanceof java.net.SocketTimeoutException
+                || t instanceof java.io.InterruptedIOException) {
+                return "Ollama 响应超时，多模态/大图推理较慢时可增大配置 local-llm.ollama.timeout（毫秒）或稍后重试。";
+            }
+            t = t.getCause();
+        }
+        return e.getMessage() != null ? e.getMessage() : "推理失败，请查看服务端日志。";
+    }
+
+    /**
+     * 构建图片 URL 列表：优先使用 imageUrls，否则用 imageUrl 转为单元素列表
+     */
+    private List<String> buildImageUrls(InferenceRequest request) {
+        if (request.getImageUrls() != null && !request.getImageUrls().isEmpty()) {
+            return request.getImageUrls().stream()
+                .filter(url -> url != null && !url.trim().isEmpty())
+                .map(String::trim)
+                .collect(Collectors.toList());
+        }
+        if (request.getImageUrl() != null && !request.getImageUrl().trim().isEmpty()) {
+            return Collections.singletonList(request.getImageUrl().trim());
+        }
+        return Collections.emptyList();
     }
 
     /**
@@ -262,7 +301,10 @@ public class LocalLLMController {
      */
     public static class InferenceRequest {
         private String prompt;
+        /** 单张图片 URL（与 imageUrls 二选一，兼容旧版） */
         private String imageUrl;
+        /** 多张图片 URL 列表，一次识别多图时使用 */
+        private List<String> imageUrls;
         private String ocrText;
         private String model;
 
@@ -280,6 +322,14 @@ public class LocalLLMController {
 
         public void setImageUrl(String imageUrl) {
             this.imageUrl = imageUrl;
+        }
+
+        public List<String> getImageUrls() {
+            return imageUrls;
+        }
+
+        public void setImageUrls(List<String> imageUrls) {
+            this.imageUrls = imageUrls;
         }
 
         public String getOcrText() {

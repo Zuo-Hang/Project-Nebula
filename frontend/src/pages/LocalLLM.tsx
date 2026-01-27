@@ -32,9 +32,9 @@ const { Title, Text } = Typography
 
 const LocalLLM = () => {
   const [prompt, setPrompt] = useState('')
-  const [imageUrl, setImageUrl] = useState('')
-  const [uploadedFile, setUploadedFile] = useState<UploadFile | null>(null)
-  const [qualityInfo, setQualityInfo] = useState<QualityInfo | null>(null) // 文件清晰度信息
+  const [imageUrl, setImageUrl] = useState('') // 可选：额外图片 URL（可与上传的图片一起发送）
+  const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([])
+  const [qualityInfos, setQualityInfos] = useState<Record<string, QualityInfo>>({}) // fileUrl -> 清晰度
   const [ocrResult, setOcrResult] = useState<string | null>(null) // OCR识别结果（后续通过OCR服务调用生成）
   const [selectedModel, setSelectedModel] = useState<string>('')
   const [availableModels, setAvailableModels] = useState<string[]>([])
@@ -88,10 +88,16 @@ const LocalLLM = () => {
     setResult(null)
 
     try {
+      const urlsFromUpload = uploadedFiles.map((f) => f.url).filter((u): u is string => Boolean(u))
+      const extraUrl = imageUrl.trim() || null
+      const imageUrls = extraUrl
+        ? [...urlsFromUpload, extraUrl]
+        : urlsFromUpload
+
       const request: InferenceRequest = {
         prompt: prompt.trim(),
-        imageUrl: imageUrl.trim() || null,
-        // 只有当OCR结果不为空时才传递（避免传递空字符串）
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+        imageUrl: imageUrls.length === 1 ? imageUrls[0] : undefined,
         ocrText: ocrResult && ocrResult.trim() ? ocrResult.trim() : null,
         model: selectedModel || null,
       }
@@ -127,58 +133,60 @@ const LocalLLM = () => {
     }
   }
 
-  // 文件上传处理
+  // 文件上传处理（支持多张）
   const handleUpload = async (file: File) => {
     setUploading(true)
     setError(null)
-    
+
     try {
       const formData = new FormData()
       formData.append('file', file)
-      
+
       const response = await fetch('/api/llm/upload', {
         method: 'POST',
         body: formData,
       })
-      
+
       const result = await response.json()
-      
+
       if (result.success) {
-        // 使用返回的 fileUrl（本地文件路径，格式：file:///path/to/file）
-        setImageUrl(result.fileUrl)
-        setUploadedFile({
-          uid: file.name,
+        const fileUrl = result.fileUrl as string
+        const newEntry: UploadFile = {
+          uid: `${file.name}-${Date.now()}`,
           name: file.name,
           status: 'done',
-          url: result.fileUrl,
-        } as UploadFile)
-        
-        // 如果后端返回了清晰度信息，设置它
+          url: fileUrl,
+        }
+
+        setUploadedFiles((prev) => [...prev, newEntry])
+
+        let quality: QualityInfo | undefined
         if (result.quality) {
-          setQualityInfo({
+          quality = {
             width: result.width,
             height: result.height,
             resolution: result.resolution,
             quality: result.quality,
-          })
+          }
         } else {
-          // 如果后端没有返回，尝试单独获取清晰度信息
           try {
-            const qualityResponse = await getFileQuality(result.fileUrl)
+            const qualityResponse = await getFileQuality(fileUrl)
             if (qualityResponse.success && qualityResponse.quality) {
-              setQualityInfo({
+              quality = {
                 width: qualityResponse.width!,
                 height: qualityResponse.height!,
                 resolution: qualityResponse.resolution!,
                 quality: qualityResponse.quality!,
-              })
+              }
             }
           } catch (err) {
-            // 清晰度获取失败不影响上传
             console.debug('获取清晰度信息失败:', err)
           }
         }
-        
+        if (quality) {
+          setQualityInfos((prev) => ({ ...prev, [fileUrl]: quality! }))
+        }
+
         message.success('图片上传成功')
       } else {
         setError(result.error || '上传失败')
@@ -191,23 +199,28 @@ const LocalLLM = () => {
     } finally {
       setUploading(false)
     }
-    
+
     return false // 阻止默认上传行为
   }
 
-  // 删除上传的文件
-  const handleRemoveFile = () => {
-    setImageUrl('')
-    setUploadedFile(null)
-    setQualityInfo(null)
+  // 删除某张已上传的图片
+  const handleRemoveFile = (file: UploadFile) => {
+    setUploadedFiles((prev) => prev.filter((f) => f.uid !== file.uid))
+    if (file.url) {
+      setQualityInfos((prev) => {
+        const next = { ...prev }
+        delete next[file.url as string]
+        return next
+      })
+    }
   }
 
   // 清空输入
   const handleClear = () => {
     setPrompt('')
     setImageUrl('')
-    setUploadedFile(null)
-    setQualityInfo(null)
+    setUploadedFiles([])
+    setQualityInfos({})
     setOcrResult(null)
     setResult(null)
     setError(null)
@@ -294,61 +307,61 @@ const LocalLLM = () => {
               </div>
 
               <div>
-                <Text strong>图片（可选）</Text>
+                <Text strong>图片（可选，可多张）</Text>
                 <Space direction="vertical" style={{ width: '100%' }} size="small">
                   <Upload
                     beforeUpload={handleUpload}
                     onRemove={handleRemoveFile}
-                    fileList={uploadedFile ? [uploadedFile] : []}
-                    maxCount={1}
+                    fileList={uploadedFiles}
+                    maxCount={10}
                     accept="image/*"
                     disabled={loading || uploading}
                   >
-                    <Button 
-                      icon={<UploadOutlined />} 
+                    <Button
+                      icon={<UploadOutlined />}
                       loading={uploading}
                       disabled={loading || uploading}
                     >
-                      上传图片
+                      上传图片（可多选）
                     </Button>
                   </Upload>
-                  {!uploadedFile && (
-                    <Input
-                      placeholder="或输入图片URL: http://localhost:9000/image.jpg"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      disabled={loading}
-                      allowClear
-                    />
-                  )}
-                  {uploadedFile && (
-                    <div style={{ padding: '8px 0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                          已上传: {uploadedFile.name}
-                        </Text>
-                        <Button
-                          type="link"
-                          size="small"
-                          icon={<DeleteOutlined />}
-                          onClick={handleRemoveFile}
-                          disabled={loading}
-                        >
-                          删除
-                        </Button>
-                      </div>
-                      {qualityInfo && (
-                        <div style={{ padding: '4px 8px', background: '#f0f7ff', borderRadius: 4, fontSize: 12 }}>
-                          <Text type="secondary">
-                            清晰度: <Text strong style={{ color: '#1890ff' }}>{qualityInfo.quality}</Text>
-                            {' '} | 分辨率: {qualityInfo.resolution}
-                          </Text>
+                  {uploadedFiles.length > 0 && (
+                    <div style={{ padding: '4px 0', fontSize: 12 }}>
+                      <Text type="secondary">已上传 {uploadedFiles.length} 张</Text>
+                      {uploadedFiles.some((f) => f.url && qualityInfos[f.url as string]) && (
+                        <div style={{ marginTop: 4 }}>
+                          {uploadedFiles.map(
+                            (f) =>
+                              f.url &&
+                              qualityInfos[f.url] && (
+                                <div
+                                  key={f.uid}
+                                  style={{
+                                    padding: '4px 8px',
+                                    background: '#f0f7ff',
+                                    borderRadius: 4,
+                                    marginTop: 4,
+                                  }}
+                                >
+                                  <Text type="secondary" style={{ fontSize: 12 }}>
+                                    {f.name}: {qualityInfos[f.url].quality} | {qualityInfos[f.url].resolution}
+                                  </Text>
+                                </div>
+                              )
+                          )}
                         </div>
                       )}
                     </div>
                   )}
+                  <Input
+                    placeholder="或输入额外图片 URL（可选）"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    disabled={loading}
+                    allowClear
+                  />
                   <Text type="secondary" style={{ fontSize: 12 }}>
-                    支持上传本地图片或输入图片URL，用于多模态推理
+                    支持一次上传多张图片或输入图片 URL，用于多模态推理
                   </Text>
                 </Space>
               </div>

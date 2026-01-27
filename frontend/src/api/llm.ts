@@ -5,7 +5,10 @@ const LLM_API_BASE_URL = import.meta.env.VITE_LLM_API_BASE_URL || '/api/llm'
 
 export interface InferenceRequest {
   prompt: string
+  /** 单张图片 URL（与 imageUrls 二选一，兼容旧版） */
   imageUrl?: string | null
+  /** 多张图片 URL 列表，一次识别多图时使用 */
+  imageUrls?: string[] | null
   ocrText?: string | null
   model?: string | null
 }

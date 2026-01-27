@@ -18,11 +18,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * 本地大模型服务
@@ -53,6 +53,12 @@ public class LocalLLMService {
     private String[] defaultAvailableModels;
 
     /**
+     * 调用 Ollama 的 HTTP 超时时间（毫秒）。多模态/大模型推理较慢，建议 60s 以上。
+     */
+    @Value("${local-llm.ollama.timeout:300000}")
+    private long ollamaTimeoutMs;
+
+    /**
      * ObjectMapper 用于解析 JSON
      */
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -77,27 +83,28 @@ public class LocalLLMService {
     }
 
     /**
-     * 调用本地 Ollama 模型进行推理
+     * 调用本地 Ollama 模型进行推理（支持多图）
      *
-     * @param prompt  提示词
-     * @param imageUrl 图片URL（可选，用于多模态，当前暂未使用）
-     * @param ocrText OCR文本（可选）
+     * @param prompt   提示词
+     * @param imageUrls 图片URL列表（可选，支持多张图片）
+     * @param ocrText  OCR文本（可选）
      * @param modelName 模型名称（可选，如果为空则使用默认模型）
      * @return 模型推理结果（包含内容和Token信息）
      */
-    public InferenceResult infer(String prompt, String imageUrl, String ocrText, String modelName) {
+    public InferenceResult infer(String prompt, List<String> imageUrls, String ocrText, String modelName) {
         if (prompt == null || prompt.isEmpty()) {
             throw new IllegalArgumentException("prompt 不能为空");
         }
 
         // 如果没有指定模型，使用默认模型
-        String actualModelName = (modelName != null && !modelName.isEmpty()) 
-            ? modelName 
+        String actualModelName = (modelName != null && !modelName.isEmpty())
+            ? modelName
             : defaultModelName;
 
-        log.info("调用本地Ollama模型: promptLength={}, hasImage={}, hasOcrText={}, model={}",
+        int imageCount = (imageUrls != null) ? imageUrls.size() : 0;
+        log.info("调用本地Ollama模型: promptLength={}, imageCount={}, hasOcrText={}, model={}",
             prompt.length(),
-            imageUrl != null && !imageUrl.isEmpty(),
+            imageCount,
             ocrText != null && !ocrText.isEmpty(),
             actualModelName);
 
@@ -106,29 +113,26 @@ public class LocalLLMService {
 
             // 构建多模态消息内容
             List<Content> contents = new ArrayList<>();
-            
+
             // 1. 添加文本内容（包含OCR文本和提示词）
             String fullPrompt = buildFullPrompt(prompt, ocrText);
             contents.add(TextContent.from(fullPrompt));
-            
-            // 2. 添加图片内容（如果提供）
-            // 支持两种格式：
-            // - HTTP/HTTPS URL: http://localhost:9000/image.jpg
-            // - Base64 Data URL: data:image/jpeg;base64,/9j/4AAQSkZJRg...
-            if (imageUrl != null && !imageUrl.isEmpty()) {
-                try {
-                    if (imageUrl.startsWith("data:")) {
-                        // Base64 格式：data:image/jpeg;base64,xxx
-                        contents.add(ImageContent.from(imageUrl));
-                        log.debug("使用Base64格式图片: dataUrlLength={}", imageUrl.length());
-                    } else {
-                        // URL 格式：http://... 或 file://...
-                        contents.add(ImageContent.from(imageUrl));
-                        log.debug("使用URL格式图片: imageUrl={}", imageUrl);
+
+            // 2. 添加多张图片内容（如果提供）
+            // 支持格式：HTTP/HTTPS URL、file://、Base64 Data URL
+            if (imageUrls != null && !imageUrls.isEmpty()) {
+                for (int i = 0; i < imageUrls.size(); i++) {
+                    String imageUrl = imageUrls.get(i);
+                    if (imageUrl == null || imageUrl.isEmpty()) {
+                        continue;
                     }
-                } catch (Exception e) {
-                    log.warn("添加图片内容失败，将仅使用文本: imageUrl={}, error={}", imageUrl, e.getMessage());
-                    // 如果图片加载失败，继续使用纯文本模式
+                    try {
+                        contents.add(ImageContent.from(imageUrl));
+                        log.debug("添加图片 {}: dataUrl={}, length={}", i + 1,
+                            imageUrl.startsWith("data:"), imageUrl.length());
+                    } catch (Exception e) {
+                        log.warn("添加图片失败，跳过: index={}, error={}", i + 1, e.getMessage());
+                    }
                 }
             }
 
@@ -148,12 +152,12 @@ public class LocalLLMService {
             Integer outputTokens = tokenUsage != null ? tokenUsage.outputTokenCount() : null;
             Integer totalTokens = tokenUsage != null ? tokenUsage.totalTokenCount() : null;
 
+            int resultLen = content != null ? content.length() : 0;
             log.info("本地Ollama推理完成: cost={}ms, resultLength={}, inputTokens={}, outputTokens={}, totalTokens={}",
-                cost,
-                content != null ? content.length() : 0,
-                inputTokens,
-                outputTokens,
-                totalTokens);
+                cost, resultLen, inputTokens, outputTokens, totalTokens);
+            if (resultLen == 0) {
+                log.warn("模型返回内容为空，可能原因：提示/图片触发了安全策略、模型无法理解、或 Ollama 响应格式异常，可尝试换模型或简化输入。");
+            }
 
             // 构建结果对象
             InferenceResult result = new InferenceResult();
@@ -243,11 +247,12 @@ public class LocalLLMService {
                     return modelCache.get(name);
                 }
                 
-                log.info("初始化 Ollama ChatLanguageModel: baseUrl={}, model={}", baseUrl, name);
+                log.info("初始化 Ollama ChatLanguageModel: baseUrl={}, model={}, timeoutMs={}", baseUrl, name, ollamaTimeoutMs);
 
                 ChatLanguageModel model = OllamaChatModel.builder()
                     .baseUrl(normalizeBaseUrl(baseUrl))
                     .modelName(name)
+                    .timeout(Duration.ofMillis(ollamaTimeoutMs))
                     .build();
                 
                 return model;

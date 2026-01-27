@@ -1,13 +1,24 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Table, Button, Space, Tag, Card, Form, Input, Select, message } from 'antd'
+import { Table, Button, Space, Tag, Card, Form, Input, Select, message, Alert } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { getTaskList, TaskStatus } from '../api/task'
 import TaskSubmitModal from '../components/TaskSubmitModal'
 import dayjs from 'dayjs'
+import axios from 'axios'
 
 const { Option } = Select
+
+/** 是否为“连接被拒绝”等网络不可达错误 */
+const isConnectionRefused = (err: unknown) => {
+  if (axios.isAxiosError(err)) {
+    const code = err.code
+    const msg = err.message || ''
+    return code === 'ECONNREFUSED' || code === 'ERR_NETWORK' || msg.includes('Network Error')
+  }
+  return false
+}
 
 const TaskList = () => {
   const navigate = useNavigate()
@@ -15,9 +26,10 @@ const TaskList = () => {
   const [submitModalVisible, setSubmitModalVisible] = useState(false)
   const [filters, setFilters] = useState<{ status?: string; taskType?: string }>({})
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['tasks', filters],
     queryFn: () => getTaskList({ ...filters, page: 1, pageSize: 20 }),
+    retry: false, // 避免编排服务未启动时不断重试，刷屏 proxy error
   })
 
   const handleFilter = (values: any) => {
@@ -118,15 +130,33 @@ const TaskList = () => {
           </Form.Item>
         </Form>
 
+        {isError && isConnectionRefused(error) && (
+          <Alert
+            type="warning"
+            showIcon
+            message="编排服务未连接"
+            description={
+              <>
+                任务列表需要编排服务（orchestrator-core，端口 8080）运行。当前无法连接，请先启动：
+                <code style={{ marginLeft: 4 }}>cd orchestrator-core && mvn spring-boot:run</code>
+                <br />
+                或使用侧边栏的「本地 LLM」「OCR 识别」功能，无需编排服务。
+              </>
+            }
+            style={{ marginBottom: 16 }}
+          />
+        )}
+
         <Space style={{ marginBottom: 16 }}>
           <Button
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => setSubmitModalVisible(true)}
+            disabled={isError}
           >
             提交任务
           </Button>
-          <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
+          <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isLoading}>
             刷新
           </Button>
         </Space>
