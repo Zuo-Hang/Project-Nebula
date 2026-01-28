@@ -95,20 +95,19 @@ public class LocalLLMController {
                 request.getOcrText(),
                 request.getModel()
             );
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("content", result.getContent());
             response.put("inputTokens", result.getInputTokens());
             response.put("outputTokens", result.getOutputTokens());
             response.put("totalTokens", result.getTotalTokens());
-            // 返回OCR识别结果（如果有）
             if (result.getOcrText() != null && !result.getOcrText().isEmpty()) {
                 response.put("ocrText", result.getOcrText());
             }
-            
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             log.error("推理失败", e);
             String userMessage = resolveInferErrorMessage(e);
@@ -116,6 +115,38 @@ public class LocalLLMController {
             response.put("success", false);
             response.put("error", userMessage);
             return ResponseEntity.internalServerError().body(response);
+        } finally {
+            deleteUploadedImagesAfterInfer(imageUrls);
+        }
+    }
+
+    /**
+     * 推理结束后删除本次请求中使用的、位于上传目录下的本地图片，避免磁盘堆积。
+     * 仅删除 file:// 且路径在本服务上传目录内的文件。
+     */
+    private void deleteUploadedImagesAfterInfer(List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            return;
+        }
+        Path uploadPath = Paths.get(uploadDirectory).toAbsolutePath().normalize();
+        for (String url : imageUrls) {
+            if (url == null || !url.startsWith("file://")) {
+                continue;
+            }
+            String pathStr = url.substring(7).trim();
+            if (pathStr.isEmpty()) {
+                continue;
+            }
+            try {
+                Path path = Paths.get(pathStr).toAbsolutePath().normalize();
+                if (!path.startsWith(uploadPath) || !Files.isRegularFile(path)) {
+                    continue;
+                }
+                Files.delete(path);
+                log.debug("推理后删除上传图片: {}", path.getFileName());
+            } catch (IOException e) {
+                log.warn("删除上传图片失败: path={}, error={}", pathStr, e.getMessage());
+            }
         }
     }
 
