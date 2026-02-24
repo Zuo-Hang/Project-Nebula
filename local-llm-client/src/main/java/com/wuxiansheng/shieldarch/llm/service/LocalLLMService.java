@@ -9,7 +9,6 @@ import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.model.output.TokenUsage;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,12 +22,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 本地大模型服务
  *
  * 使用 LangChain4j 的 Ollama 集成调用本地部署的 Ollama 模型。
- * 当前实现只使用文本通道（prompt + OCR 文本），imageUrl 暂未使用。
+ * 本类使用 Java 8+ 特性（ConcurrentHashMap、computeIfAbsent、Duration、Optional、List.of），旧写法以注释保留在「对比学习」块中。
  */
 @Slf4j
 @Service
@@ -64,23 +64,27 @@ public class LocalLLMService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * 缓存的 ChatLanguageModel 实例（按模型名称缓存）
+     * 缓存的 ChatLanguageModel 实例（按模型名称缓存）。
+     * ----- 对比学习：若不用并发需求可用 HashMap，但多线程下需外部加锁。
+     * ----- 新写法 + 特性含义：ConcurrentHashMap（Java 8）线程安全的 HashMap，支持高并发读写，
+     * 内部细粒度锁，无需在调用处 synchronized，适合缓存。
      */
     private final Map<String, ChatLanguageModel> modelCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     private final Object modelLock = new Object();
 
     /**
-     * 推理结果（包含内容和Token使用信息）
+     * 推理结果（包含内容和 Token 使用信息）。
+     * ----- 对比学习：旧写法为 @Data class + 私有字段 + Lombok 生成 getter/setter。
+     * ----- 新写法 + 特性含义：record（Java 16+）不可变数据载体，一条声明即生成规范构造器与访问器（content()、inputTokens() 等），适合返回值 DTO。
      */
-    @Data
-    public static class InferenceResult {
-        private String content;
-        private Integer inputTokens;
-        private Integer outputTokens;
-        private Integer totalTokens;
-        private String ocrText; // OCR识别结果（用于返回给前端显示）
-    }
+    public record InferenceResult(
+        String content,
+        Integer inputTokens,
+        Integer outputTokens,
+        Integer totalTokens,
+        String ocrText   // OCR 识别结果（用于返回给前端显示）
+    ) {}
 
     /**
      * 调用本地 Ollama 模型进行推理（支持多图）
@@ -140,17 +144,24 @@ public class LocalLLMService {
             UserMessage userMessage = UserMessage.userMessage(contents);
 
             long start = System.currentTimeMillis();
+            // ----- 对比学习：旧写法 可 new ArrayList<>() 再 add(userMessage)，再传入。 -----
+            // ----- 新写法 + 特性含义：List.of（Java 9+）不可变 List 工厂，创建后不可修改，单元素列表语义清晰 -----
             Response<AiMessage> response = model.generate(List.of(userMessage));
             long cost = System.currentTimeMillis() - start;
 
             // 提取内容
             String content = response.content().text();
 
-            // 提取 Token 使用信息
+            // ----- 对比学习：旧写法 -----
+            // TokenUsage tokenUsage = response.tokenUsage();
+            // Integer inputTokens = tokenUsage != null ? tokenUsage.inputTokenCount() : null;
+            // ...
+            // ----- 新写法 + 特性含义：Optional（Java 8）表示「可能为空」的容器；
+            // ofNullable 包装可能 null 的值，map 对非空做转换，orElse(null) 为空时返回 null，避免重复 if (x != null) -----
             TokenUsage tokenUsage = response.tokenUsage();
-            Integer inputTokens = tokenUsage != null ? tokenUsage.inputTokenCount() : null;
-            Integer outputTokens = tokenUsage != null ? tokenUsage.outputTokenCount() : null;
-            Integer totalTokens = tokenUsage != null ? tokenUsage.totalTokenCount() : null;
+            Integer inputTokens = Optional.ofNullable(tokenUsage).map(TokenUsage::inputTokenCount).orElse(null);
+            Integer outputTokens = Optional.ofNullable(tokenUsage).map(TokenUsage::outputTokenCount).orElse(null);
+            Integer totalTokens = Optional.ofNullable(tokenUsage).map(TokenUsage::totalTokenCount).orElse(null);
 
             int resultLen = content != null ? content.length() : 0;
             log.info("本地Ollama推理完成: cost={}ms, resultLength={}, inputTokens={}, outputTokens={}, totalTokens={}",
@@ -159,18 +170,12 @@ public class LocalLLMService {
                 log.warn("模型返回内容为空，可能原因：提示/图片触发了安全策略、模型无法理解、或 Ollama 响应格式异常，可尝试换模型或简化输入。");
             }
 
-            // 构建结果对象
-            InferenceResult result = new InferenceResult();
-            result.setContent(content);
-            result.setInputTokens(inputTokens);
-            result.setOutputTokens(outputTokens);
-            result.setTotalTokens(totalTokens);
-            // 保存OCR文本（只有当不为空时才保存，避免返回空字符串）
-            result.setOcrText(
-                (ocrText != null && !ocrText.trim().isEmpty()) ? ocrText.trim() : null
-            );
-
-            return result;
+            // ----- 对比学习：旧写法 -----
+            // InferenceResult result = new InferenceResult();
+            // result.setContent(content); result.setInputTokens(...); ...
+            // ----- 新写法：record 使用规范构造器一次性创建不可变对象 -----
+            String resultOcrText = (ocrText != null && !ocrText.trim().isEmpty()) ? ocrText.trim() : null;
+            return new InferenceResult(content, inputTokens, outputTokens, totalTokens, resultOcrText);
         } catch (Exception e) {
             log.error("本地Ollama推理失败", e);
             throw new RuntimeException("本地Ollama推理失败: " + e.getMessage(), e);
@@ -237,37 +242,43 @@ public class LocalLLMService {
     }
 
     /**
-     * 懒加载并缓存 ChatLanguageModel 实例（按模型名称缓存）
+     * 懒加载并缓存 ChatLanguageModel 实例（按模型名称缓存）。
+     * ----- 对比学习：旧写法 可 modelCache.get(name); if (null) { synchronized { 再 get 再 put } }，逻辑冗长。
+     * ----- 新写法 + 特性含义：computeIfAbsent（Java 8）Map 的原子方法，键不存在时用 lambda 计算并放入，存在则直接返回值；
+     * Duration.ofMillis（Java 8）表示「一段时长」的类型，比裸 long 毫秒数语义清晰，便于与 API 对接。
      */
     private ChatLanguageModel getOrCreateModel(String modelName) {
         return modelCache.computeIfAbsent(modelName, name -> {
             synchronized (modelLock) {
-                // 双重检查
                 if (modelCache.containsKey(name)) {
                     return modelCache.get(name);
                 }
-                
                 log.info("初始化 Ollama ChatLanguageModel: baseUrl={}, model={}, timeoutMs={}", baseUrl, name, ollamaTimeoutMs);
-
                 ChatLanguageModel model = OllamaChatModel.builder()
                     .baseUrl(normalizeBaseUrl(baseUrl))
                     .modelName(name)
                     .timeout(Duration.ofMillis(ollamaTimeoutMs))
                     .build();
-                
                 return model;
             }
         });
     }
 
     /**
-     * 构建完整的 Prompt（包含 OCR 文本）
+     * 构建完整的 Prompt（包含 OCR 文本）。
+     * ----- 对比学习：旧写法 return String.format("%s%n%nOCR识别结果：%n%s", prompt, ocrText);
+     * ----- 新写法 + 特性含义：文本块（Java 15+）"""...""" 多行字符串字面量，避免 %n 与转义，可读性更好。
      */
     private String buildFullPrompt(String prompt, String ocrText) {
         if (ocrText == null || ocrText.isEmpty()) {
             return prompt;
         }
-        return String.format("%s%n%nOCR识别结果：%n%s", prompt, ocrText);
+        return String.format("""
+            %s
+
+            OCR识别结果：
+            %s
+            """, prompt, ocrText);
     }
 
     /**

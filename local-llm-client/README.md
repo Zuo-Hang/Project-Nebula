@@ -150,6 +150,10 @@ local-llm:
 - ❌ 配置中心
 - ❌ 其他复杂组件
 
+## Java 8+ 新特性说明
+
+本模块在 Controller 与 Service 中使用了 **var**、**List.of** / **Map.of**、**Optional**、**Stream**、**ConcurrentHashMap**、**computeIfAbsent**、**Duration** 等特性，并在代码中保留了「对比学习」的旧写法注释。各特性含义与选用原因详见：[JAVA_FEATURES.md](JAVA_FEATURES.md)。
+
 ## 💡 使用场景
 
 - 本地开发和测试

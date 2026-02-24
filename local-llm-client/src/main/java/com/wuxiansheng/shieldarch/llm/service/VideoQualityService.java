@@ -2,7 +2,6 @@ package com.wuxiansheng.shieldarch.llm.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -30,20 +29,14 @@ public class VideoQualityService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * 视频/图片信息
+     * 视频/图片信息。
+     * ----- 对比学习：旧写法为 @Data class + 构造器内给 resolution 赋值。
+     * ----- 新写法 + 特性含义：record（Java 16+）不可变数据载体；resolution 改为由 accessor 推导，不存冗余字段。
      */
-    @Data
-    public static class VideoInfo {
-        private int width;
-        private int height;
-        private String quality;
-        private String resolution; // 格式: "1920x1080"
-
-        public VideoInfo(int width, int height, String quality) {
-            this.width = width;
-            this.height = height;
-            this.quality = quality;
-            this.resolution = width + "x" + height;
+    public record VideoInfo(int width, int height, String quality) {
+        /** 格式: "1920x1080"，由组件推导，无需单独存储 */
+        public String resolution() {
+            return width + "x" + height;
         }
     }
 
@@ -170,55 +163,33 @@ public class VideoQualityService {
      * @param width 宽度（像素）
      * @param height 高度（像素）
      * @return 清晰度字符串
+     * ----- 对比学习：旧写法为一系列 if (resolution >= xxx) return "..."; -----
+     * ----- 新写法 + 特性含义：switch 表达式（Java 14+）先算档位再按档位返回，箭头 -> 无 fall-through，表达更集中。
      */
     private String determineQuality(int width, int height) {
         // 根据视频方向确定判断基准（以短边为准）
-        int resolution;
-        if (width > height) {
-            // 横屏：以高度（短边）判断
-            resolution = height;
-        } else {
-            // 竖屏：以宽度（短边）判断
-            resolution = width;
-        }
+        int resolution = width > height ? height : width;
 
-        // 4K (2160p) - Ultra HD / UHD
-        if (resolution >= 2160) {
-            return "4K (2160p)";
-        }
+        // 将分辨率档位映射为 0～8，再用 switch 表达式返回文案
+        int tier = resolution >= 2160 ? 8
+            : resolution >= 1440 ? 7
+            : resolution >= 1080 ? 6
+            : resolution >= 720 ? 5
+            : resolution >= 480 ? 4
+            : resolution >= 360 ? 3
+            : resolution >= 240 ? 2
+            : 1;
 
-        // 2K (1440p) - Quad HD / QHD
-        if (resolution >= 1440) {
-            return "2K (1440p)";
-        }
-
-        // 1080p - Full HD
-        if (resolution >= 1080) {
-            return "1080p";
-        }
-
-        // 720p - HD (High Definition)
-        if (resolution >= 720) {
-            return "720p";
-        }
-
-        // 480p - SD (Standard Definition)
-        if (resolution >= 480) {
-            return "480p";
-        }
-
-        // 360p - 低清
-        if (resolution >= 360) {
-            return "360p";
-        }
-
-        // 240p - 低清
-        if (resolution >= 240) {
-            return "240p";
-        }
-
-        // 低于240p - 超低清
-        return width + "x" + height + " (低清)";
+        return switch (tier) {
+            case 8 -> "4K (2160p)";
+            case 7 -> "2K (1440p)";
+            case 6 -> "1080p";
+            case 5 -> "720p";
+            case 4 -> "480p";
+            case 3 -> "360p";
+            case 2 -> "240p";
+            default -> width + "x" + height + " (低清)";
+        };
     }
 
     /**
